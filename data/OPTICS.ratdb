@@ -475,6 +475,48 @@ PROPERTY_LIST: ["NEUTRON_CAPTURE_TIME", "NEUTRON_SLOW_DIFFUSION_CONST", "NEUTRON
 
 {
 name: "OPTICS",
+index: "scintillator_wls",
+valid_begin : [0, 0],
+valid_end : [0, 0],
+NEUTRON_CAPTURE_TIME_value1: [0.0d, 1.0d, ],
+NEUTRON_CAPTURE_TIME_value2: [163000.d, 163000.d, ],
+NEUTRON_SLOW_DIFFUSION_CONST_value1: [0.0d, 1.0d, ],
+NEUTRON_SLOW_DIFFUSION_CONST_value2: [0.03d, 0.03d, ],
+NEUTRON_FAST_DIFFUSION_RMS_value1: [0.0d, 1.0d, ],
+NEUTRON_FAST_DIFFUSION_RMS_value2: [50.0d, 50.0d, ],
+RINDEX_option: "wavelength",
+RINDEX_value1: [200d, 300d, 400d, 500d, 600d, 700d, 800d, ],
+RINDEX_value2: [1.5930d, 1.4867d, 1.4578d, 1.4460d, 1.4399d, 1.4364d, 1.4342d, ],
+SCINTILLATION_option: "dy_dwavelength",
+SCINTILLATION_value1: [200d, 335d, 340d, 345d, 347d, 350d, 352d, 354d, 356d, 358d, 360d, 363d, 376d, 383d, 388d, 396d, 403d, 411d, 422d, 438d, 450d, 460d, 470d, 480d, 490d, 500d, 510d, 800d, ],
+SCINTILLATION_value2: [0d, 0d, 1d, 12d, 23d, 46d, 69d, 92d, 115d, 138d, 161d, 178d, 178d, 161d, 138d, 115d, 92d, 69d, 46d, 23d, 13d, 8d, 5d, 3d, 2d, 1d, 0d, 0d, ],
+SCINTWAVEFORM_value1: [-9.8d, -24d, -67.6d, ],
+SCINTWAVEFORM_value2: [0.60d, 0.0d, 0.40d, ],
+SCINTWAVEFORMalpha_value1: [-8.218d, -23.41d, -288.9d, ],
+SCINTWAVEFORMalpha_value2: [0.5206d, 0.4259d, 0.5356d-1, ],
+SCINTWAVEFORMneutron_value1: [-6.862d, -12.79d, -84.34d, ],
+SCINTWAVEFORMneutron_value2: [0.7407d, 0.2050d, 0.5427d-1, ],
+
+REEMITWAVEFORM_value1: [-10.0d, ],
+REEMITWAVEFORM_value2: [1.0d, ],
+
+SCINTMOD_value1: [1d, ],
+SCINTMOD_value2: [0.152d, ],
+
+ABSLENGTH_option: "wavelength",
+ABSLENGTH_value1: [200d, 300d, 350d, 355d, 360d, 365d, 370d, 385d, 390d, 400d, 470d, 500d, 540d, 600d, 650d, 680d, 770d, 800d, ],
+ABSLENGTH_value2: [0.1d-3, 0.1d-3, 27d, 75d, 530d, 2.4d3, 5.3d3, 7.5d3, 10.0d3, 15.0d3, 20.0d3, 20.0d3, 40.0d3, 40.0d3, 20.0d3, 15.0d3, 10.0d3, 0.1d-3, ],
+OPSCATFRAC_option: "wavelength",
+OPSCATFRAC_value1: [200d, 300d, 350d, 360d, 400d, 450d, 500d, 600d, 700d, 770d, 800d, ],
+OPSCATFRAC_value2: [0.0d, 0.0d, 0.0d, 0.44d, 0.28d, 0.17d, 0.10d, 0.0625d, 0.0337d, 0.020d, 0.0d, ],
+REEMISSION_PROB_option: "wavelength",
+REEMISSION_PROB_value1: [200d, 300d, 350d, 365d, 370d, 375d, 380d, 385d, 390d, 395d, 400d, 405d, 410d, 415d, 420d, 425d, 430d, 435d, 440d, 445d, 450d, 500d, 600d, 700d, 800d, ],
+REEMISSION_PROB_value2: [1.0d, 1.0d, 0.9996d, 0.9704d, 0.8722d, 0.6353d, 0.4165d, 0.3004d, 0.2354d, 0.2203d, 0.1969d, 0.1936d, 0.1712d, 0.1417d, 0.1409d, 0.1344d, 0.1372d, 0.1160d, 0.1215d, 0.1259d, 0.1141d, 0.0587d, 0.0000d, 0.0d, 0.0d, ],
+PROPERTY_LIST: ["NEUTRON_CAPTURE_TIME", "NEUTRON_SLOW_DIFFUSION_CONST", "NEUTRON_FAST_DIFFUSION_RMS", "RINDEX", "SCINTILLATION", "SCINTWAVEFORM", "SCINTWAVEFORMalpha", "SCINTWAVEFORMneutron", "REEMITWAVEFORM", "SCINTMOD", "ABSLENGTH", "OPSCATFRAC", "REEMISSION_PROB", ]
+}
+
+{
+name: "OPTICS",
 index: "gd_scintillator",
 valid_begin : [0, 0],
 valid_end : [0, 0],

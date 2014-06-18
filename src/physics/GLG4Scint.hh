@@ -126,13 +126,20 @@ public:
         Entry();
         ~Entry();
         void Build(const G4String& name, int material_index,
-                   G4MaterialPropertiesTable *matprops);
+                   G4MaterialPropertiesTable* matprops);
+
+        // Parse a material property vector with scintillation timing into
+        // an ordered vector, supporting both time-series data and decay
+        // time constants.
+        G4PhysicsOrderedFreeVector*
+        BuildTimeIntegral(G4MaterialPropertyVector* wfdata);
 
         G4PhysicsOrderedFreeVector* spectrumIntegral;
         G4PhysicsOrderedFreeVector* reemissionIntegral;
         G4PhysicsOrderedFreeVector* timeIntegral;
-        bool I_own_spectrumIntegral, I_own_timeIntegral;
-        bool HaveTimeConsts;
+        G4PhysicsOrderedFreeVector* reemissionTimeIntegral;
+        bool ownSpectrumIntegral;
+        bool ownTimeIntegral;
         G4double resolutionScale;
         G4double birksConstant;
         G4double ref_dE_dx;
@@ -142,11 +149,15 @@ public:
 
     static MyPhysicsTable* FindOrBuild(const G4String& name);
 
-    static const MyPhysicsTable* GetDefault(void) { return head; }
+    static const MyPhysicsTable* GetDefault() { return head; }
 
     void IncUsedBy(void) { ++used_by_count; }
 
-    void DecUsedBy(void) { if (--used_by_count <= 0) delete this; }
+    void DecUsedBy(void) {
+      if (--used_by_count <= 0) {
+        delete this;
+      }
+    }
 
     const Entry* GetEntry(int i) const { return data + i; }
 
@@ -184,13 +195,13 @@ public:
   G4VParticleChange* PostPostStepDoIt(const G4Track& aTrack,
                                       const G4Step& aStep);
 
-  G4double GetLowerMassLimit(void) const;
+  G4double GetLowerMassLimit() const;
 
   void DumpInfo() const;
 
   MyPhysicsTable* GetMyPhysicsTable(void) const;
 
-  G4int GetVerboseLevel(void) const;
+  G4int GetVerboseLevel() const;
 
   void SetVerboseLevel(G4int level);    
 

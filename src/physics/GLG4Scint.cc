@@ -380,7 +380,13 @@ GLG4Scint::PostPostStepDoIt(const G4Track& aTrack, const G4Step& aStep) {
     }
 
     // Now look up waveform information we need to add the secondaries
-    G4PhysicsOrderedFreeVector* WaveformIntegral = physicsEntry->timeIntegral;
+    G4PhysicsOrderedFreeVector* WaveformIntegral;
+    if (flagReemission) {
+      WaveformIntegral = physicsEntry->reemissionTimeIntegral;
+    }
+    else {
+      WaveformIntegral = physicsEntry->timeIntegral;
+    }
 
     for (G4int iSecondary=0; iSecondary<numSecondaries; iSecondary++) {
       // Determine photon momentum
@@ -685,22 +691,77 @@ void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
 /////////////////////////////////////
 
 GLG4Scint::MyPhysicsTable::Entry::Entry()
-    : spectrumIntegral(NULL), reemissionIntegral(NULL), timeIntegral(NULL),
-      I_own_spectrumIntegral(false), I_own_timeIntegral(false),
+    : spectrumIntegral(NULL), reemissionIntegral(NULL),
+      timeIntegral(NULL), reemissionTimeIntegral(NULL),
+      ownSpectrumIntegral(false), ownTimeIntegral(false),
       resolutionScale(1), birksConstant(0), ref_dE_dx(0), light_yield(0),
       QuenchingArray(NULL) {}
 
 
 GLG4Scint::MyPhysicsTable::Entry::~Entry() {
-  if (I_own_spectrumIntegral) {
+  if (ownSpectrumIntegral) {
    delete spectrumIntegral;
    delete reemissionIntegral;
   }
 
-  if (I_own_timeIntegral)
+  if (ownTimeIntegral) {
     delete timeIntegral;
+    delete reemissionTimeIntegral;
+  }
 
   delete QuenchingArray;
+}
+
+G4PhysicsOrderedFreeVector*
+GLG4Scint::MyPhysicsTable::Entry::BuildTimeIntegral(G4MaterialPropertyVector* wfdata) {
+  G4PhysicsOrderedFreeVector* integral = NULL;
+
+  // Do we have time-series or decay-time data?
+  if (wfdata->GetMinLowEdgeEnergy() >= 0.0) {
+    // We have digitized waveform (time-series) data
+    integral = RAT::Integrate_MPV_to_POFV(wfdata);
+  }
+  else {
+    // We have decay-time data. Sanity-check user's values:
+    if (wfdata->Energy(wfdata->GetVectorLength() - 1) > 0.0) {
+      G4cerr << "GLG4Scint::MyPhysicsTable::Entry::Build():  "
+             << "SCINTWAVEFORM "
+             << " has both positive and negative X values.  "
+             << " Undefined results will ensue!" << G4endl;
+    }
+
+    G4double maxtime = -3.0 * (wfdata->GetMinLowEdgeEnergy());
+    G4double mintime = -1.0 * (wfdata->GetMaxLowEdgeEnergy());
+    G4double bin_width = mintime / 100;
+    int nbins = (int) (maxtime / bin_width) + 1;
+    G4double* tval = new G4double[nbins];
+    G4double* ival = new G4double[nbins];
+    for (int i=0; i<nbins; i++) {
+      tval[i] = i * maxtime / nbins;
+      ival[i] = 0.0;
+    }
+
+    for (unsigned int j=0; j<wfdata->GetVectorLength(); j++) {
+      G4double ampl = (*wfdata)[j];
+      G4double decy = wfdata->Energy(j);
+      for (int i=0; i<nbins; i++) {
+        ival[i] += ampl * (1.0 - exp(tval[i] / decy));
+      }
+    }
+
+    for (int i=0; i<nbins; i++) {
+      ival[i] /= ival[nbins-1];
+    }
+
+    integral = new G4PhysicsOrderedFreeVector(tval, ival, nbins);
+
+    // G4PhysicsOrderedFreeVector makes its own copy of any array passed
+    // to its constructor
+    delete[] tval;
+    delete[] ival;
+  }
+
+  return integral;
 }
 
 
@@ -709,17 +770,19 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
     int i,
     G4MaterialPropertiesTable *aMaterialPropertiesTable) {
   // Delete old data
-  if (I_own_spectrumIntegral) {
+  if (ownSpectrumIntegral) {
     delete spectrumIntegral;
     delete reemissionIntegral;
   }
 
-  if (I_own_timeIntegral) {
+  if (ownTimeIntegral) {
     delete timeIntegral;
+    delete reemissionTimeIntegral;
   }
 
   // Set defaults
-  spectrumIntegral = reemissionIntegral = timeIntegral = NULL;
+  spectrumIntegral = reemissionIntegral = NULL;
+  timeIntegral = reemissionTimeIntegral = NULL;
   resolutionScale = 1.0;
   birksConstant = ref_dE_dx = 0.0;    
   light_yield = 0.0;    
@@ -730,9 +793,8 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
     return;
   }
   
-  // Retrieve vector of scintillation wavelength intensity
-  // for the material from the material's optical
-  // properties table ("SCINTILLATION")
+  // Retrieve vector of scintillation andreemission wavelength intensity
+  // for the material from the optical properties table
   std::stringstream property_string;
 
   property_string.str("");
@@ -741,8 +803,8 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
     aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
 
   property_string.str("");
-  property_string << "SCINTILLATION_WLS" << name;
-  G4MaterialPropertyVector* theReemissionLightVector = 
+  property_string << "REEMISSION" << name;
+  G4MaterialPropertyVector* theReemissionLightVector =
     aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
 
   if (theScintillationLightVector && !theReemissionLightVector) {
@@ -765,86 +827,54 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
       theScintillationLightVector = NULL;
     }
 
-    // find the integral
-    if (theScintillationLightVector == NULL)
+    // Find the integral
+    if (theScintillationLightVector == NULL) {
       spectrumIntegral = NULL;
-    else
+    }
+    else {
       spectrumIntegral = RAT::Integrate_MPV_to_POFV(theScintillationLightVector);
+    }
 
     reemissionIntegral = RAT::Integrate_MPV_to_POFV(theReemissionLightVector);   
-    I_own_spectrumIntegral = true;
+    ownSpectrumIntegral = true;
   }
   else {
     // Use default integral (possibly null)
     spectrumIntegral =
       MyPhysicsTable::GetDefault()->GetEntry(i)->spectrumIntegral;
     reemissionIntegral = spectrumIntegral;
-    I_own_spectrumIntegral = false;
+    ownSpectrumIntegral = false;
   }
 
-  // Retrieve vector of scintillation time profile
-  // for the material from the material's optical
-  // properties table ("SCINTWAVEFORM")
+  // Retrieve vector of scintillation and reemission time profiles
+  // for the material from the optical properties table
   property_string.str("");
   property_string << "SCINTWAVEFORM" << name;
   G4MaterialPropertyVector* theWaveForm = 
     aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
 
+  property_string.str("");
+  property_string << "REEMITWAVEFORM" << name;
+  G4MaterialPropertyVector* theReemissionWaveForm = 
+    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+
+  if (theWaveForm && !theReemissionWaveForm) {
+    G4cout << "GLG4Scint: Warning: Using the primary scintillation timing "
+           << "for reemission" << G4endl;
+    theReemissionWaveForm = theWaveForm;
+  }
+
   if (theWaveForm) {
-    // Do we have time-series or decay-time data?
-    if (theWaveForm->GetMinLowEdgeEnergy() >= 0.0) {
-      // We have digitized waveform (time-series) data
-      // Find the integral
-      timeIntegral = RAT::Integrate_MPV_to_POFV(theWaveForm);
-      I_own_timeIntegral = true;
-    }
-    else {
-      // We have decay-time data.
-      // Sanity-check user's values:
-      // Issue a warning if they are nonsense, but continue
-      if (theWaveForm->Energy(theWaveForm->GetVectorLength() - 1) > 0.0) {
-        G4cerr << "GLG4Scint::MyPhysicsTable::Entry::Build():  "
-               << "SCINTWAVEFORM" << name
-               << " has both positive and negative X values.  "
-               << " Undefined results will ensue!" << G4endl;
-      }
-
-      G4double maxtime= -3.0 * (theWaveForm->GetMinLowEdgeEnergy());
-      G4double mintime= -1.0 * (theWaveForm->GetMaxLowEdgeEnergy());
-      G4double bin_width = mintime / 100;
-      int nbins = (int) (maxtime / bin_width) + 1;
-      G4double* tval = new G4double[nbins];
-      G4double* ival = new G4double[nbins];
-      for (int i=0; i<nbins; i++) {
-        tval[i] = i * maxtime / nbins;
-        ival[i] = 0.0;
-      }
-      
-      for (unsigned int j=0; j<theWaveForm->GetVectorLength(); j++) {
-        G4double ampl = (*theWaveForm)[j];
-        G4double decy = theWaveForm->Energy(j);
-        for (int i=0; i<nbins; i++) {
-          ival[i] += ampl * (1.0 - exp(tval[i] / decy));
-        }
-      }
-
-      for (int i=0; i<nbins; i++) {
-        ival[i] /= ival[nbins-1];
-      }
-
-      timeIntegral = new G4PhysicsOrderedFreeVector(tval, ival, nbins);
-      I_own_timeIntegral = true;
-
-      // G4PhysicsOrderedFreeVector makes its own copy of any array passed
-      // to its constructor
-      delete[] tval;
-      delete[] ival;
-    }
+    // User-specified scintillation time profile
+    timeIntegral = BuildTimeIntegral(theWaveForm);
+    reemissionTimeIntegral = BuildTimeIntegral(theReemissionWaveForm);
+    ownTimeIntegral = true;
   }
   else {
-    // Use default integral (possibly null)
+    // Use the default
     timeIntegral = MyPhysicsTable::GetDefault()->GetEntry(i)->timeIntegral;
-    I_own_timeIntegral = false;
+    reemissionTimeIntegral = timeIntegral;
+    ownTimeIntegral = false;
   }
 
   // Retrieve vector of scintillation "modifications"
@@ -862,7 +892,7 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
   }
   
   if (theScintModVector) {
-    // Parse the entries in ScintMod:
+    // Parse the entries in SCINTMOD:
     //   0 - ResolutionScale
     //   1 - BirksConstant
     //   2 - Ref_dE_dx
