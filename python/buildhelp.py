@@ -13,25 +13,12 @@ RATENVFILE = os.path.join(RATCONFIGDIR, "RAT.scons")
 ROOTARCH = os.popen("root-config --arch").read().strip()
 
 # Discover version info for RAT
-if os.path.isdir(os.path.join(RATROOT,'.hg')):
-    svn_info = os.popen('hg svn info '+RATROOT).read()
-else:
-    svn_info = os.popen('svn info '+RATROOT).read()
-svn_info_match = re.search('Revision: (\d+)', svn_info)
-if svn_info_match is None:
-    # Maybe someone is using git-svn
+try:
     git_info = os.popen('git log -n 100').read()
     git_info_match = re.search('git-svn-id:.*@(\d+)', git_info)
-    if git_info_match is None:
-
-        # Maybe someone is using hg svn
-        
-        print 'Cannot discover RAT version.  Is $RATROOT set?'
-        sys.exit(1)
-    else:
-        RATVERSION = int(git_info_match.group(1))
-else:
-    RATVERSION = int(svn_info_match.group(1))
+    RATVERSION = int(git_info_match.group(1))
+except AttributeError:
+    RATVERSION = -1
 
 RATVERSIONSTR = 'r'+str(RATVERSION)
 

@@ -3,59 +3,47 @@
 namespace RAT {
 
 G4PhysicsOrderedFreeVector*
-Integrate_MPV_to_POFV( G4MaterialPropertyVector* inputVector )
-{
-    G4PhysicsOrderedFreeVector *aPhysicsOrderedFreeVector
-      = new G4PhysicsOrderedFreeVector();
-    
-    // Retrieve the first intensity point in vector
-    // of (photon momentum, intensity) pairs 
+Integrate_MPV_to_POFV(G4MaterialPropertyVector* inputVector) {
+  G4PhysicsOrderedFreeVector *aPhysicsOrderedFreeVector =
+    new G4PhysicsOrderedFreeVector();
 
-    unsigned int i = 0;
-    G4double currentIN = (*inputVector)[i];
+  // Retrieve the first intensity point in vector
+  // of (photon momentum, intensity) pairs
+  unsigned int i = 0;
+  G4double currentIN = (*inputVector)[i];
 
-    if (currentIN >= 0.0)
-      {
+  if (currentIN >= 0.0) {
+    // Create first (photon momentum, scintillation integral) pair
+    G4double currentPM = inputVector->Energy(i);
+    G4double currentCII = 0.0;
 
-	// Create first (photon momentum, Scintillation 
-	// Integral pair  
+    aPhysicsOrderedFreeVector->InsertValues(currentPM , currentCII);
 
-	G4double currentPM = inputVector->Energy(i);
+    // Set previous values to current ones prior to loop
+    G4double prevPM  = currentPM;
+    G4double prevCII = currentCII;
+    G4double prevIN  = currentIN;
 
-	G4double currentCII = 0.0;
+    // Loop over (photon momentum, intensity) pairs stored for this material
+    while (i < inputVector->GetVectorLength() - 1) {
+      i++;
+      currentPM = inputVector->Energy(i);
+      currentIN = (*inputVector)[i];
 
-	aPhysicsOrderedFreeVector->
-	  InsertValues(currentPM , currentCII);
+      currentCII = 0.5 * (prevIN + currentIN);
 
-	// Set previous values to current ones prior to loop
-	G4double prevPM  = currentPM;
-	G4double prevCII = currentCII;
-	G4double prevIN  = currentIN;
+      currentCII = prevCII + (currentPM - prevPM) * currentCII;
 
-	// loop over all (photon momentum, intensity)
-	// pairs stored for this material  
-	while(i < inputVector->GetVectorLength()-1)
-	  {
-	      i++;
-	      currentPM = inputVector->Energy(i);
-	      currentIN=(*inputVector)[i];
+      aPhysicsOrderedFreeVector->InsertValues(currentPM, currentCII);
 
-	      currentCII = 0.5 * (prevIN + currentIN);
+      prevPM = currentPM;
+      prevCII = currentCII;
+      prevIN = currentIN;
+    }
+  }
 
-	      currentCII = prevCII +
-		(currentPM - prevPM) * currentCII;
-
-	      aPhysicsOrderedFreeVector->
-		InsertValues(currentPM, currentCII);
-
-	      prevPM  = currentPM;
-	      prevCII = currentCII;
-	      prevIN  = currentIN;
-	  }
-
-      }
-
-    return aPhysicsOrderedFreeVector;
+  return aPhysicsOrderedFreeVector;
 }
 
 } // namespace RAT
+
