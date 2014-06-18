@@ -490,14 +490,14 @@ RINDEX_value2: [1.5930d, 1.4867d, 1.4578d, 1.4460d, 1.4399d, 1.4364d, 1.4342d, ]
 SCINTILLATION_option: "dy_dwavelength",
 SCINTILLATION_value1: [200d, 335d, 340d, 345d, 347d, 350d, 352d, 354d, 356d, 358d, 360d, 363d, 376d, 383d, 388d, 396d, 403d, 411d, 422d, 438d, 450d, 460d, 470d, 480d, 490d, 500d, 510d, 800d, ],
 SCINTILLATION_value2: [0d, 0d, 1d, 12d, 23d, 46d, 69d, 92d, 115d, 138d, 161d, 178d, 178d, 161d, 138d, 115d, 92d, 69d, 46d, 23d, 13d, 8d, 5d, 3d, 2d, 1d, 0d, 0d, ],
-SCINTWAVEFORM_value1: [-9.8d, -24d, -67.6d, ],
-SCINTWAVEFORM_value2: [0.60d, 0.0d, 0.40d, ],
+SCINTWAVEFORM_value1: [-0.1d, ],
+SCINTWAVEFORM_value2: [1.0d, ],
 SCINTWAVEFORMalpha_value1: [-8.218d, -23.41d, -288.9d, ],
 SCINTWAVEFORMalpha_value2: [0.5206d, 0.4259d, 0.5356d-1, ],
 SCINTWAVEFORMneutron_value1: [-6.862d, -12.79d, -84.34d, ],
 SCINTWAVEFORMneutron_value2: [0.7407d, 0.2050d, 0.5427d-1, ],
 
-REEMITWAVEFORM_value1: [-10.0d, ],
+REEMITWAVEFORM_value1: [-200.0d, ],
 REEMITWAVEFORM_value2: [1.0d, ],
 
 SCINTMOD_value1: [1d, ],

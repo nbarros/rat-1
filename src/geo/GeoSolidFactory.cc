@@ -3,6 +3,7 @@
 #include <RAT/Materials.hh>
 #include <G4OpticalSurface.hh>
 #include <G4LogicalSkinSurface.hh>
+#include <G4NistManager.hh>
 #include <G4VisAttributes.hh>
 
 using namespace std;
