@@ -114,68 +114,7 @@ class G4UIdirectory;
 
 class GLG4Scint : public G4UImessenger {
 public:
-  class MyPhysicsTable {
-  public:
-    class Entry {
-      public:
-        Entry();
-        ~Entry();
-        void Build(const G4String& name, int material_index,
-                   G4MaterialPropertiesTable* matprops);
-
-        // Parse a material property vector with scintillation timing into
-        // an ordered vector, supporting both time-series data and decay
-        // time constants.
-        G4PhysicsOrderedFreeVector*
-        BuildTimeIntegral(G4MaterialPropertyVector* wfdata);
-
-        G4PhysicsOrderedFreeVector* spectrumIntegral;
-        G4PhysicsOrderedFreeVector* reemissionIntegral;
-        G4PhysicsOrderedFreeVector* timeIntegral;
-        G4PhysicsOrderedFreeVector* reemissionTimeIntegral;
-        bool ownSpectrumIntegral;
-        bool ownTimeIntegral;
-        G4double resolutionScale;
-        G4double birksConstant;
-        G4double ref_dE_dx;
-        G4double light_yield;
-        G4MaterialPropertyVector* fQuenchingArray;
-    };
-
-    static MyPhysicsTable* FindOrBuild(const G4String& name);
-
-    static const MyPhysicsTable* GetDefault() { return head; }
-
-    void IncUsedBy(void) { ++used_by_count; }
-
-    void DecUsedBy(void) {
-      if (--used_by_count <= 0) {
-        delete this;
-      }
-    }
-
-    const Entry* GetEntry(int i) const { return data + i; }
-
-    void Dump(void) const;
-
-    G4String* name;
-
-  private:
-    friend class GLG4Scint;
-
-    MyPhysicsTable();
-
-    ~MyPhysicsTable();
-
-    void Build(const G4String& newname);
-
-    MyPhysicsTable* next;
-    G4int used_by_count;
-    Entry* data;
-    G4int length;
-
-    static MyPhysicsTable* head;
-  };
+  class MyPhysicsTable;
   
   GLG4Scint(const G4String& tableName="", G4double lowerMassLimit=0.0);
 
@@ -194,22 +133,13 @@ public:
     return fLowerMassLimit;
   }
 
-  void DumpInfo() const {
-    G4cout << "GLG4Scint[" << *(fPhysicsTable->name) << "] {" << G4endl
-           << "  fLowerMassLimit=" << fLowerMassLimit << G4endl;
-#ifdef G4DEBUG
-    if (fPhysicsTable)
-      fPhysicsTable->Dump();
-    }
-#endif
-    G4cout << "}" << G4endl;
-  }
+  void DumpInfo() const;
   
   MyPhysicsTable* GetMyPhysicsTable() const {
     return fPhysicsTable;
   }
 
-  // Methods are for G4UImessenger
+  // Set/get a command in the G4UImessenger
   void SetNewValue(G4UIcommand* command, G4String newValues);
   G4String GetCurrentValue(G4UIcommand* command);
 
@@ -253,12 +183,12 @@ public:
   static void SetUseUserQF(G4bool flag) { sUseUserQF = flag; }
 
 protected:
-  // Below is the pointer to the physics table which this instance
-  // of GLG4Scint will use.  You may create a separate instance
-  // of GLG4Scint for each particle, if you like.
+  // Pointer to the physics table which this instance of GLG4Scint will use.
+  // You may create a separate instance of GLG4Scint for each particle, if
+  // you like.
   MyPhysicsTable* fPhysicsTable;
 
-  // below is the lower mass limit for this instance of GLG4Scint
+  // Lower mass limit
   G4double fLowerMassLimit;
 
   // Return value of PostPostStepDoIt
@@ -271,36 +201,133 @@ protected:
   // Top level of scintillation command
   static G4UIdirectory* sUIDirectory;
 
-  // universal maximum number of secondary tracks per step for GLG4Scint
+  // Maximum number of secondary tracks per step
   static G4int sMaxTracksPerStep;
 
-  // universal mean number of true photons per secondary track in GLG4Scint
+  // Mean number of true photons per secondary track
   static G4double sMeanPhotonsPerSecondary;
 
-  // universal on/off flag
+  // Enable/disable the production of scintillation photons
   static G4bool sDoScintillation;
 
-  // on/off flag for absorbed opticalphoton reemission
+  // Enable/disable the production of reemission photons
   static G4bool sDoReemission;
 
-  // total real energy deposited and total quenched energy deposited
+  // Total "real" (unquenched) energy deposited
   static G4double sTotEdep;
+
+  // Total quenched energy deposited
   static G4double sTotEdepQuenched;
+
   static G4double sTotEdepTime;
+
   static G4ThreeVector sScintCentroidSum;
 
   // Bogus processes used to tag photons created in GLG4Scint
   static GLG4DummyProcess sScintProcess;
   static GLG4DummyProcess sReemissionProcess;
 
-  // Quenching Factor
+  // Quenching factor
   static G4double sQuenchingFactor;
 
-  // User-given (constant) quenching factor flag
+  // Enable/disable use of a user-provided constant quenching factor
   static G4bool sUseUserQF;
 
   //static G4std::vector<GLG4DummyProcess*> reemissionProcessVector;
 };
+
+
+/**
+ * @class GLG4Scint::MyPhysicsTable
+ */
+class GLG4Scint::MyPhysicsTable {
+public:
+  class Entry;
+
+  static MyPhysicsTable* FindOrBuild(const G4String& name);
+
+  static const MyPhysicsTable* GetDefault() { return head; }
+
+  void IncUsedBy(void) { ++used_by_count; }
+
+  void DecUsedBy(void) {
+    if (--used_by_count <= 0) {
+      delete this;
+    }
+  }
+
+  const Entry* GetEntry(int i) const;
+
+  void Dump(void) const;
+
+  G4String* name;
+
+private:
+  friend class GLG4Scint;
+
+  MyPhysicsTable();
+
+  ~MyPhysicsTable();
+
+  void Build(const G4String& newname);
+
+  MyPhysicsTable* next;
+  G4int used_by_count;
+  Entry* data;
+  G4int length;
+
+  static MyPhysicsTable* head;
+};
+
+
+/**
+ * @class GLG4Scint::MyPhysicsTable::Entry
+ */
+class GLG4Scint::MyPhysicsTable::Entry {
+public:
+  Entry();
+  ~Entry();
+  void Build(const G4String& name, int material_index,
+             G4MaterialPropertiesTable* matprops);
+
+  // Parse a material property vector with scintillation timing into
+  // an ordered vector, supporting both time-series data and decay
+  // time constants.
+  G4PhysicsOrderedFreeVector*
+  BuildTimeIntegral(G4MaterialPropertyVector* wfdata);
+
+  G4PhysicsOrderedFreeVector* spectrumIntegral;
+  G4PhysicsOrderedFreeVector* reemissionIntegral;
+  G4PhysicsOrderedFreeVector* timeIntegral;
+  G4PhysicsOrderedFreeVector* reemissionTimeIntegral;
+  bool ownSpectrumIntegral;
+  bool ownTimeIntegral;
+  G4double resolutionScale;
+  G4double birksConstant;
+  G4double ref_dE_dx;
+  G4double light_yield;
+  G4MaterialPropertyVector* fQuenchingArray;
+};
+
+
+// Inline method definitions
+
+inline void GLG4Scint::DumpInfo() const {
+  G4cout << "GLG4Scint[" << *(fPhysicsTable->name) << "] {" << G4endl
+         << "  fLowerMassLimit=" << fLowerMassLimit << G4endl;
+#ifdef G4DEBUG
+  if (fPhysicsTable)
+    fPhysicsTable->Dump();
+  }
+#endif
+  G4cout << "}" << G4endl;
+}
+
+
+inline const GLG4Scint::MyPhysicsTable::Entry*
+GLG4Scint::MyPhysicsTable::GetEntry(int i) const {
+  return data + i;
+}
 
 #endif  // __GLG4Scint__
 
