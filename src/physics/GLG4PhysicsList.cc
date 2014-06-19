@@ -666,9 +666,6 @@ void MYNAME_PhysicsList::ConstructOp()
       theDefaultScintProcess->DumpInfo();
       theHeavyScintProcess->DumpInfo();
     }
-
-    theDefaultScintProcess->SetVerboseLevel(1);
-    theHeavyScintProcess->SetVerboseLevel(1);
   }
   else
     printf("Unknown scintillation physics list");

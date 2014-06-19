@@ -1,23 +1,19 @@
-#include "G4ios.hh"
-#include "GLG4OpAttenuation.hh"
-
-#include "G4DynamicParticle.hh"
-#include "G4Material.hh"
-#include "G4OpticalPhoton.hh"
-#include "G4GeometryTolerance.hh"
-#include "globals.hh"
-#include "templates.hh"
-#include "Randomize.hh"
-#include "G4Step.hh"
+#include <G4ios.hh>
+#include <GLG4OpAttenuation.hh>
+#include <G4DynamicParticle.hh>
+#include <G4Material.hh>
+#include <G4OpticalPhoton.hh>
+#include <G4GeometryTolerance.hh>
+#include <globals.hh>
+#include <templates.hh>
+#include <Randomize.hh>
+#include <G4Step.hh>
 
 using namespace std;
 
-/////////////////
-// Hidden static variables and functions
-/////////////////
-
-// values in Cos2ThetaTable are used in equation to invert the equation
+// Values in Cos2ThetaTable are used in equation to invert the equation
 // for generating an angular distribution for scalar scattering:
+//
 //  dP/d(cos\theta) = (3/4) sin^2\theta
 //   P_{cumulative} = (2+3*cos\theta-cos^3\theta)/4
 //      cos(\theta) = 4*(P_{cumulative}-1/2) / (3-cos^2\theta)
@@ -54,9 +50,6 @@ static void InitializeTable() {
   TableInitialized = 1;
 }
 
-/////////////////
-// Constructors and Destructor
-/////////////////
 
 GLG4OpAttenuation::GLG4OpAttenuation(const G4String& processName)
     : G4OpAbsorption(processName) {
@@ -67,9 +60,6 @@ GLG4OpAttenuation::GLG4OpAttenuation(const G4String& processName)
 
 GLG4OpAttenuation::~GLG4OpAttenuation() {}
 
-////////////
-// Methods
-////////////
 
 G4VParticleChange*
 GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
