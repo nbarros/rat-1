@@ -637,15 +637,19 @@ void Materials::LoadOptics() {
     // Loop over components, adding their properties to the current material's
     // properties table. They are numbered by their index so that we can
     // e.g. absorb on X and reemit with the right spectrum
+    G4double* attenuation_coeff_x = NULL;
+    G4double* attenuation_coeff_y = NULL;
+    G4int n_entries = 0;
+
     mpt->AddConstProperty("NCOMPONENTS", components.size());
     for (size_t i=0; i<components.size(); i++) {
       std::string compname = components[i];
       double fraction = fractions[i];
       std::stringstream ss;
-      ss << "FRACTION" << i + 1;
+      ss << "FRACTION" << i;
       mpt->AddConstProperty(ss.str().c_str(), fraction);
 
-      G4cout << " - Component " << i << ": " << compname
+      G4cout << " - " << name << "[" << i << "]: " << compname
              << " (" << 100.0 * fraction << "%)" << G4endl;
 
       G4Material* component = G4Material::GetMaterial(compname);
@@ -659,9 +663,6 @@ void Materials::LoadOptics() {
 
       // Copy over relevant property vectors, and meanwhile calculate the
       // total attentuation length
-      G4double* attenuation_coeff_x = NULL;
-      G4double* attenuation_coeff_y = NULL;
-      G4int n_entries = 0;
       std::map<G4String, G4MaterialPropertyVector*>::const_iterator it;
 
       for (it=cpm->begin(); it!=cpm->end(); it++) {
@@ -671,54 +672,58 @@ void Materials::LoadOptics() {
             name.find("REEMISSION") != std::string::npos      ||
             name.find("REEMISSION_PROB") != std::string::npos ||
             name.find("REEMIT_WAVEFORM") != std::string::npos) {
+
+          // FIXME debugging output
+          G4cout << compname << " has property " << name << G4endl;
+
           Log::Assert(mpm->find(name) == mpm->end(),
                       "Materials: Composite material cannot contain the same properties as components");
 
-          // FIXME debugging output
-          G4cout << compname << " has " << name << "!" << G4endl;
-
           if (name.find("ABSLENGTH") != std::string::npos) {
+            G4MaterialPropertyVector* attVector = it->second;
+
+            attVector->ScaleVector(1.0, 1.0 / fraction);
+
             if (!attenuation_coeff_x) {
-              G4MaterialPropertyVector* tempv = it->second;
-              size_t entries = tempv->GetVectorLength();
-              n_entries = entries;
-              attenuation_coeff_x = new G4double[entries];
-              attenuation_coeff_y = new G4double[entries];
-              for (size_t ientry=0; ientry<entries; ientry++) {
-                attenuation_coeff_x[ientry] = tempv->Energy(ientry);
-                attenuation_coeff_y[ientry] = fraction / tempv->Value(ientry);
+              n_entries = attVector->GetVectorLength();
+              attenuation_coeff_x = new G4double[n_entries];
+              attenuation_coeff_y = new G4double[n_entries];
+              for (G4int ientry=0; ientry<n_entries; ientry++) {
+                attenuation_coeff_x[ientry] = attVector->Energy(ientry);
+                attenuation_coeff_y[ientry] = 1.0 / attVector->Value(ientry);
               }
             }
             else {
-              size_t entries = it->second->GetVectorLength();
-              for (size_t ientry=0; ientry<entries; ientry++) {
-                G4double ahere = it->second->Value(attenuation_coeff_x[ientry]);
-                attenuation_coeff_y[ientry] += fraction / ahere;
+              for (G4int ientry=0; ientry<n_entries; ientry++) {
+                G4double ahere = attVector->Value(attenuation_coeff_x[ientry]);
+                attenuation_coeff_y[ientry] += 1.0 / ahere;
               }
             }
           }
-          else {
-            std::stringstream ss;
-            ss << name << i + 1;
-            mpt->AddProperty(ss.str().c_str(), it->second);
-          }
+
+          // FIXME debugging output
+          std::stringstream ss;
+          ss << name << i;
+          G4cout << "Adding " << ss.str() << G4endl;
+
+          mpt->AddProperty(ss.str().c_str(), it->second);
         }
       }
+    }
 
-      // Build total attenuation length from components if needed
-      if (n_entries > 0) {
-        G4double* attenuation_length_y = new G4double[n_entries];
-        for (G4int i=0; i<n_entries; i++) {
-          attenuation_length_y[i] = 1.0 / attenuation_coeff_y[i];
-        }
-
-        G4MaterialPropertyVector* pv_abs =
-          new G4MaterialPropertyVector(attenuation_coeff_x,
-                                       attenuation_length_y,
-                                       n_entries);
-
-        mpt->AddProperty("ABSLENGTH", pv_abs);
+    // Build total attenuation length from components if needed
+    if (n_entries > 0) {
+      G4double* attenuation_length_y = new G4double[n_entries];
+      for (G4int i=0; i<n_entries; i++) {
+        attenuation_length_y[i] = 1.0 / attenuation_coeff_y[i];
       }
+
+      G4MaterialPropertyVector* pv_abs =
+        new G4MaterialPropertyVector(attenuation_coeff_x,
+                                     attenuation_length_y,
+                                     n_entries);
+
+      mpt->AddProperty("ABSLENGTH", pv_abs);
     }
 
     // FIXME debugging output

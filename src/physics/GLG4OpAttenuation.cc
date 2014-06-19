@@ -1,12 +1,3 @@
-// This file is part of the GenericLAND software library.
-//
-//  "Attenuation" (absorption or scattering) of optical photons
-//
-//   GenericLAND Simulation
-//
-//   Original: Glenn Horton-Smith, Dec 2001
-// 
-
 #include "G4ios.hh"
 #include "GLG4OpAttenuation.hh"
 
@@ -33,7 +24,7 @@ using namespace std;
 //                                                ^^^^^^^^^^^ table value used
 #define N_COSTHETA_ENTRIES 129
 static double Cos2ThetaTable[N_COSTHETA_ENTRIES]; 
-static int TableInitialized= 0;
+static int TableInitialized = 0;
 
 GLG4DummyProcess GLG4OpAttenuation::fgAttenuation("Attenuation");
 GLG4DummyProcess GLG4OpAttenuation::fgScattering("Scattering");
@@ -48,7 +39,7 @@ static void InitializeTable() {
   for (int i=0; i<N_COSTHETA_ENTRIES-1; i++) {
     double x= i / (double)(N_COSTHETA_ENTRIES - 1);
     double old_cos2th;
-    // find exact root by iterating to convergence
+    // Find root by iterating to convergence
     do {
       old_cos2th = cos2th;
       double costh = 2.0 * x / (3.0 - cos2th);
@@ -81,30 +72,61 @@ GLG4OpAttenuation::~GLG4OpAttenuation() {}
 ////////////
 
 G4VParticleChange*
-GLG4OpAttenuation::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep) {
-  aParticleChange.Initialize(aTrack);
+GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
+  aParticleChange.Initialize(track);
 
-  const G4DynamicParticle* aParticle = aTrack.GetDynamicParticle();
-  const G4Material* aMaterial = aTrack.GetMaterial();
-  G4StepPoint* postStepPoint = aStep.GetPostStepPoint();
+  const G4DynamicParticle* particle = track.GetDynamicParticle();
+  G4StepPoint* postStepPoint = step.GetPostStepPoint();
+  G4double photonMomentum = particle->GetTotalMomentum();
 
-  G4double thePhotonMomentum = aParticle->GetTotalMomentum();
+  const G4Material* material = track.GetMaterial();
+  G4MaterialPropertiesTable* materialPropertyTable =
+    material->GetMaterialPropertiesTable();
 
-  G4MaterialPropertiesTable* aMaterialPropertyTable;
-  G4MaterialPropertyVector* OpScatFracVector;
 
-  G4double OpScatFrac = 0.0;
+  G4double opScatFrac = 0;
 
-  aMaterialPropertyTable = aMaterial->GetMaterialPropertiesTable();
+  if (materialPropertyTable) {
+    std::stringstream scatteringPropertyName("OPSCATFRAC");
 
-  if (aMaterialPropertyTable) {
-    OpScatFracVector = aMaterialPropertyTable->GetProperty("OPSCATFRAC");
-    if (OpScatFracVector) {
-      OpScatFrac = OpScatFracVector->Value(thePhotonMomentum);
+    // For multi-component, decide which one attenuates
+    if (materialPropertyTable->ConstPropertyExists("NCOMPONENTS")) {
+      G4double shortest = DBL_MAX;
+      G4int compIndex = 0;
+      G4int ncomp = (G4int) materialPropertyTable->GetConstProperty("NCOMPONENTS");
+      for (G4int i=0; i<ncomp; i++) {
+        G4double attLength = DBL_MAX;
+
+        std::stringstream propname("");
+        propname << "ABSLENGTH" << i;
+        G4MaterialPropertyVector* attVector =
+          materialPropertyTable->GetProperty(propname.str().c_str());
+
+        if (attVector) {
+          attLength = attVector->Value(photonMomentum);
+        }
+
+        G4double distance = -attLength * log(CLHEP::RandFlat::shoot());
+        if (distance < shortest) {
+          shortest = distance;
+          compIndex = i;
+        }
+      }
+      scatteringPropertyName << compIndex;
+
+      // FIXME debugging output
+      //G4cout << ">>> Attenuated by component " << compIndex << G4endl;
+    }
+
+    G4MaterialPropertyVector* opScatVector =
+      materialPropertyTable->GetProperty(scatteringPropertyName.str().c_str());
+
+    if (opScatVector) {
+      opScatFrac = opScatVector->Value(photonMomentum);
     }
   }
 
-  if (OpScatFrac > 0 && G4UniformRand() < OpScatFrac) {
+  if (opScatFrac > 0 && G4UniformRand() < opScatFrac) {
     // Photon scattered coherently -- use scalar scattering (Rayleigh):
     // for fully polarized light, angular distribution \prop sin^2 \theta
     // where theta is angle between initial polarization and final
@@ -126,17 +148,17 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep) {
     G4double SinTheta = sqrt(1.0 - CosTheta * CosTheta);
     G4double Phi = (2.0 * G4UniformRand() - 1.0) * M_PI;
     G4ThreeVector e2(
-      aParticle->GetMomentumDirection().cross(aParticle->GetPolarization()));
+      particle->GetMomentumDirection().cross(particle->GetPolarization()));
 
     G4ThreeVector NewMomentum =
-      (CosTheta * aParticle->GetPolarization() +
-       (SinTheta*cos(Phi)) * aParticle->GetMomentumDirection() +
+      (CosTheta * particle->GetPolarization() +
+       (SinTheta*cos(Phi)) * particle->GetMomentumDirection() +
        (SinTheta*sin(Phi)) * e2).unit();
 
     // Polarization is normal to new momentum and in same plane as
     // old new momentum and old polarization
     G4ThreeVector NewPolarization =
-      (aParticle->GetPolarization() - CosTheta*NewMomentum).unit();
+      (particle->GetPolarization() - CosTheta*NewMomentum).unit();
 
     aParticleChange.ProposeMomentumDirection(NewMomentum);
     aParticleChange.ProposePolarization(NewPolarization);
@@ -153,6 +175,6 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep) {
     }
   }
 
-  return G4VDiscreteProcess::PostStepDoIt(aTrack, aStep);
+  return G4VDiscreteProcess::PostStepDoIt(track, step);
 }
 
