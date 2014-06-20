@@ -1,9 +1,12 @@
 #include <G4ios.hh>
-#include <GLG4OpAttenuation.hh>
+#include <G4Event.hh>
+#include <G4EventManager.hh>
 #include <G4DynamicParticle.hh>
 #include <G4Material.hh>
 #include <G4OpticalPhoton.hh>
 #include <G4GeometryTolerance.hh>
+#include <GLG4OpAttenuation.hh>
+#include <RAT/EventInfo.hh>
 #include <globals.hh>
 #include <templates.hh>
 #include <Randomize.hh>
@@ -73,8 +76,8 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
   G4MaterialPropertiesTable* materialPropertyTable =
     material->GetMaterialPropertiesTable();
 
-
   G4double opScatFrac = 0;
+  G4int componentIndex = -1;
 
   if (materialPropertyTable) {
     std::stringstream scatteringPropertyName("OPSCATFRAC");
@@ -82,7 +85,6 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
     // For multi-component, decide which one attenuates
     if (materialPropertyTable->ConstPropertyExists("NCOMPONENTS")) {
       G4double shortest = DBL_MAX;
-      G4int compIndex = 0;
       G4int ncomp = (G4int) materialPropertyTable->GetConstProperty("NCOMPONENTS");
       for (G4int i=0; i<ncomp; i++) {
         G4double attLength = DBL_MAX;
@@ -99,10 +101,10 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
         G4double distance = -attLength * log(CLHEP::RandFlat::shoot());
         if (distance < shortest) {
           shortest = distance;
-          compIndex = i;
+          componentIndex = i;
         }
       }
-      scatteringPropertyName << compIndex;
+      scatteringPropertyName << componentIndex;
 
       // FIXME debugging output
       //G4cout << ">>> Attenuated by component " << compIndex << G4endl;
@@ -163,6 +165,15 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
     if (verboseLevel > 0) {
       G4cout << "** Photon absorbed! **" << G4endl;
     }
+
+    // Keep track of which component absorbed, for use in GLG4Scint
+    G4Event* event =
+      G4EventManager::GetEventManager()->GetNonconstCurrentEvent();
+
+    RAT::EventInfo* eventInfo =
+      dynamic_cast<RAT::EventInfo*>(event->GetUserInformation());
+
+    eventInfo->opticsComponentIndex = componentIndex;
   }
 
   return G4VDiscreteProcess::PostStepDoIt(track, step);
