@@ -2,25 +2,55 @@ import os
 import sys
 import glob
 import re
+import subprocess
 
 # Useful constants
 try:
     RATROOT=os.environ["RATROOT"]
 except KeyError:
-    RATROOT=""
+    RATROOT="./"
 RATCONFIGDIR = os.path.join(RATROOT,"config")
 RATENVFILE = os.path.join(RATCONFIGDIR, "RAT.scons")
 ROOTARCH = os.popen("root-config --arch").read().strip()
 
+#FIXME: Shouldn't we fix the repositories to just git?
+#       Actually, the version should not be defined by git, or the releases won't work
+#       Should we add a config.h file that contains this kind of information?
+# Let's define a config.h file that contains the parts relevant for the verion
+## --> there is no point in supporting hg or svn any more. Hail to the git baby!
 # Discover version info for RAT
-try:
-    git_info = os.popen('git log -n 100').read()
-    git_info_match = re.search('git-svn-id:.*@(\d+)', git_info)
-    RATVERSION = int(git_info_match.group(1))
-except AttributeError:
-    RATVERSION = -1
+git_info = subprocess.Popen(['git', 'describe', '--always', '--tag'],
+                            stdout=subprocess.PIPE).communicate()[0].strip()
+                            
+if git_info is None:
+    print 'Cannot discover RAT version.  Is $RATROOT set?'
+    sys.exit(1)
+else:
+    print "||",git_info,"||"
+    RATVERSION = git_info
 
-RATVERSIONSTR = 'r'+str(RATVERSION)
+## Build a config.h file that contains the version information and so we avoid
+## weird macros passed through compiler options
+
+config_tmpl = \
+'''/// DO NOT edit
+
+#include <string>
+
+namespace RAT {
+
+static const std::string RATVERSION = "%s";
+
+}  // namespace RAT
+
+'''
+
+header = config_tmpl % (str(git_info))
+f= open(RATROOT+"/src/core/Config.hh", 'w')
+f.write(header)
+f.close()
+# No need to a string version. The original is already a string.
+#RATVERSIONSTR = 'r'+str(RATVERSION)
 
 def testenv(envname):
     'Test for the presence of an environment var and if it set to 1.'
