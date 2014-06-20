@@ -669,8 +669,6 @@ void Materials::LoadOptics() {
         std::string name = it->first;
         if (name.find("OPSCATFRAC")      != std::string::npos ||
             name.find("ABSLENGTH")       != std::string::npos ||
-            name.find("SCINTILLATION")   != std::string::npos ||
-            name.find("SCINTWAVEFORM")   != std::string::npos ||
             name.find("REEMISSION")      != std::string::npos ||
             name.find("REEMISSION_PROB") != std::string::npos ||
             name.find("REEMITWAVEFORM")  != std::string::npos) {

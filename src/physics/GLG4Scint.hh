@@ -310,16 +310,16 @@ public:
   BuildTimeIntegral(G4MaterialPropertyVector* waveformData);
 
   G4MaterialPropertyVector* fQuenchingArray;
+  std::vector<G4PhysicsOrderedFreeVector*> fReemissionSpectrumIntegral;
+  std::vector<G4PhysicsOrderedFreeVector*> fReemissionTimeIntegral;
   G4PhysicsOrderedFreeVector* fScintillationSpectrumIntegral;
-  G4PhysicsOrderedFreeVector* fReemissionSpectrumIntegral;
   G4PhysicsOrderedFreeVector* fScintillationTimeIntegral;
-  G4PhysicsOrderedFreeVector* fReemissionTimeIntegral;
-  bool fOwnSpectrumIntegral;
-  bool fOwnTimeIntegral;
   G4double fResolutionScale;
   G4double fBirksConstant;
   G4double fRef_dEdx;
   G4double fLightYield;
+  bool fOwnSpectrumIntegral;
+  bool fOwnTimeIntegral;
 };
 
 

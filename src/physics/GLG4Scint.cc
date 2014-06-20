@@ -147,14 +147,17 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
 
     bool flagReemission = false;
 
+    G4Event* event =
+      G4EventManager::GetEventManager()->GetNonconstCurrentEvent();
+
+    RAT::EventInfo* eventInfo =
+      dynamic_cast<RAT::EventInfo*>(event->GetUserInformation());
+
+    // Index of the absorbing component, 0 if not using components
+    int componentIndex = eventInfo->opticsComponentIndex;
+
     if (track.GetDefinition() == G4OpticalPhoton::OpticalPhoton()) {
       // Add the original parent track and creation step to PhotonIDParentStep
-      G4Event* event =
-        G4EventManager::GetEventManager()->GetNonconstCurrentEvent();
-
-      RAT::EventInfo* eventInfo =
-        dynamic_cast<RAT::EventInfo*>(event->GetUserInformation());
-
       RAT::TrackInfo* currentTrackInfo =
         dynamic_cast<RAT::TrackInfo*>(track.GetUserInformation());
 
@@ -202,8 +205,11 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
     G4PhysicsOrderedFreeVector* scintillationIntegral =
       physicsEntry->fScintillationSpectrumIntegral;
 
-    G4PhysicsOrderedFreeVector* reemissionIntegral =
-      physicsEntry->fReemissionSpectrumIntegral;
+    G4PhysicsOrderedFreeVector* reemissionIntegral = NULL;
+    if (!physicsEntry->fReemissionSpectrumIntegral.empty()) {
+      reemissionIntegral =
+        physicsEntry->fReemissionSpectrumIntegral[componentIndex];
+    }
     
     if (!scintillationIntegral && !reemissionIntegral) {
       goto PostStepDoIt_DONE;
@@ -230,23 +236,16 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
     // Figure out how many photons we want to make
     G4int numSecondaries;
     G4double weight;
-    //G4double reemissionProb = 0;
-    //G4int numComponents = -1;
-    //G4int absorberIndex = -1;
 
     if (flagReemission) {
       // Generate reemission photons
       G4MaterialPropertiesTable* mptScint =
         material->GetMaterialPropertiesTable();
 
-      // Check if there are multiple components
-      //if (mpt_scint->ConstPropertyExists("COMPONENTS")) {
-      //  RAT::Log::Die("GLG4Scint: COMPONENTS not yet implemented");
-      //  numComponents = mpt_scint->GetConstProperty("NUM_COMP");
-      //}
-
+      std::stringstream propname("");
+      propname << "REEMISSION_PROB" << componentIndex;
       G4MaterialPropertyVector* reemissionProbVector =
-        mptScint->GetProperty("REEMISSION_PROB");
+        mptScint->GetProperty(propname.str().c_str());
 
       if (!reemissionProbVector) {
         goto PostStepDoIt_DONE;
@@ -356,7 +355,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
     // Now look up waveform information we need to add the secondaries
     G4PhysicsOrderedFreeVector* waveformIntegral;
     if (flagReemission) {
-      waveformIntegral = physicsEntry->fReemissionTimeIntegral;
+      waveformIntegral = physicsEntry->fReemissionTimeIntegral[componentIndex];
     }
     else {
       waveformIntegral = physicsEntry->fScintillationTimeIntegral;
@@ -554,24 +553,27 @@ void GLG4Scint::MyPhysicsTable::Dump() const {
       (fData[i].fScintillationSpectrumIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
-    
+
+/*
     G4cout << "   fReemissionSpectrumIntegral=";
     if (fData[i].fReemissionSpectrumIntegral)
       (fData[i].fReemissionSpectrumIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
-      
+*/
     G4cout << "   fScintillationTimeIntegral=";
     if (fData[i].fScintillationTimeIntegral)
       (fData[i].fScintillationTimeIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
 
+/*
     G4cout << "   fReemissionTimeIntegral=";
     if (fData[i].fReemissionTimeIntegral)
       (fData[i].fReemissionTimeIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
+*/
 
     G4cout << "   resolutionScale=" << fData[i].fResolutionScale
            << "   birksConstant=" << fData[i].fBirksConstant
@@ -626,6 +628,7 @@ void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
   fData.resize(G4Material::GetNumberOfMaterials());
   for (size_t i=0; i<fData.size(); i++) {
     const G4Material* material = (*materialTable)[i];
+    G4cout << "Building " << material->GetName() << G4endl;
     fData[i].Build(fName, i, material->GetMaterialPropertiesTable());
   }
 }
@@ -637,9 +640,9 @@ void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
 void GLG4Scint::MyPhysicsTable::Entry::Initialize() {
   fQuenchingArray = NULL;
   fScintillationSpectrumIntegral = NULL;
-  fReemissionSpectrumIntegral = NULL;
+  fReemissionSpectrumIntegral.clear();
   fScintillationTimeIntegral = NULL;
-  fReemissionTimeIntegral = NULL;
+  fReemissionTimeIntegral.clear();
   fOwnSpectrumIntegral = false;
   fOwnTimeIntegral = false;
   fResolutionScale = 1.0;
@@ -651,12 +654,12 @@ void GLG4Scint::MyPhysicsTable::Entry::Initialize() {
 void GLG4Scint::MyPhysicsTable::Entry::Destroy() {
   if (fOwnSpectrumIntegral) {
    delete fScintillationSpectrumIntegral;
-   delete fReemissionSpectrumIntegral;
+   fReemissionSpectrumIntegral.clear();
   }
 
   if (fOwnTimeIntegral) {
     delete fScintillationTimeIntegral;
-    delete fReemissionTimeIntegral;
+    fReemissionTimeIntegral.clear();
   }
 
   delete fQuenchingArray;
@@ -730,91 +733,175 @@ GLG4Scint::MyPhysicsTable::Entry::Build(const G4String& name,
     return;
   }
   
-  // Retrieve vector of scintillation andreemission wavelength intensity
-  // for the material from the optical properties table
   std::stringstream propname;
+  bool isScintillator = false;
 
+  // Retrieve vector of scintillation and reemission wavelength intensity
+  // for the material from the optical properties table
   propname.str("");
   propname << "SCINTILLATION" << name;
   G4MaterialPropertyVector* scintillationSpectrumVector = 
     matProps->GetProperty(propname.str().c_str());
 
-  propname.str("");
-  propname << "REEMISSION" << name;
-  G4MaterialPropertyVector* reemissionSpectrumVector =
-    matProps->GetProperty(propname.str().c_str());
-
-  if (scintillationSpectrumVector && !reemissionSpectrumVector) {
-    G4cout << "Warning! Found a scintillator without Re-emission spectrum";
-    G4cout << " (probably a scintillator without WLS)" << G4endl;
-    G4cout << "I will assume that for this material this spectrum is equal ";
-    G4cout << "to the primary scintillation spectrum." << G4endl;
-    reemissionSpectrumVector = scintillationSpectrumVector;
-  }
-     
   if (scintillationSpectrumVector) {
-    if (matProps->ConstPropertyExists("LIGHT_YIELD"))
-      fLightYield=matProps->GetConstProperty("LIGHT_YIELD");
-    else { 
-      G4cout << "Warning! Found a scintillator without LIGHT_YIELD parameter.";
-      G4cout << "\nI will assume that for this material this parameter is ";
-      G4cout << "implicit in the scintillation integral." << G4endl;
-
-      // If no light yield, it's no scintillator
-      scintillationSpectrumVector = NULL;
-    }
-
-    // Find the integral
-    if (!scintillationSpectrumVector) {
-      fScintillationSpectrumIntegral = NULL;
+    isScintillator = true;
+    if (matProps->ConstPropertyExists("LIGHT_YIELD")) {
+      fLightYield = matProps->GetConstProperty("LIGHT_YIELD");
     }
     else {
-      fScintillationSpectrumIntegral =
-        RAT::Integrate_MPV_to_POFV(scintillationSpectrumVector);
+      G4cout << "GLG4Scint: Warning: Found a scintillator without LIGHT_YIELD "
+             << "parameter. Assuming that for this material this parameter "
+             << "is implicit in the scintillation integral." << G4endl;
     }
-
-    fReemissionSpectrumIntegral =
-      RAT::Integrate_MPV_to_POFV(reemissionSpectrumVector);   
+    fScintillationSpectrumIntegral =
+      RAT::Integrate_MPV_to_POFV(scintillationSpectrumVector);
     fOwnSpectrumIntegral = true;
   }
   else {
-    // Use default integral (possibly null)
     fScintillationSpectrumIntegral =
       MyPhysicsTable::GetDefault()->GetEntry(materialIndex)->fScintillationSpectrumIntegral;
-    fReemissionSpectrumIntegral = fScintillationSpectrumIntegral;
     fOwnSpectrumIntegral = false;
+  }
+
+  if (matProps->ConstPropertyExists("NCOMPONENTS")) {
+    size_t ncomp = (size_t) matProps->GetConstProperty("NCOMPONENTS");
+    fReemissionSpectrumIntegral.resize(ncomp);
+    for (size_t i=0; i<ncomp; i++) {
+      propname.str("");
+      propname << "REEMISSION" << name << i;
+      G4MaterialPropertyVector* reemissionSpectrum =
+        matProps->GetProperty(propname.str().c_str());
+
+      if (!fOwnSpectrumIntegral) {
+        if (isScintillator) {
+          G4cout << "GLG4Scint: Warning: Ignoring component reemission spectrum "
+                 << "since primary spectrum is not defined. Set both "
+                 << "scintillation and reemission spectra to defaults."
+                 << G4endl;
+          }
+        fReemissionSpectrumIntegral[i] = fScintillationSpectrumIntegral;
+      }
+      else {
+        if (!reemissionSpectrum) {
+          if (isScintillator) {
+            G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+                   << "spectrum for component " << i << " reemission" << G4endl;
+          }
+          fReemissionSpectrumIntegral[i] = fScintillationSpectrumIntegral;
+        }
+        else {
+          fReemissionSpectrumIntegral[i] =
+            RAT::Integrate_MPV_to_POFV(reemissionSpectrum);
+        }
+      }
+    }
+  }
+  else {
+    propname.str("");
+    propname << "REEMISSION" << name;
+    G4MaterialPropertyVector* reemissionSpectrum =
+      matProps->GetProperty(propname.str().c_str());
+
+    if (!fOwnSpectrumIntegral) {
+      if (isScintillator) {
+        G4cout << "GLG4Scint: Warning: Ignoring component reemission spectrum "
+               << "since primary spectrum is not defined. Set both "
+               << "scintillation and reemission spectra to defaults."
+               << G4endl;
+      }
+      fReemissionSpectrumIntegral.push_back(fScintillationSpectrumIntegral);
+    }
+    else {
+      if (!reemissionSpectrum) {
+        if (isScintillator) {
+          G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+                 << "spectrum for reemission" << G4endl;
+        }
+        fReemissionSpectrumIntegral.push_back(fScintillationSpectrumIntegral);
+      }
+      else {
+        fReemissionSpectrumIntegral.push_back(
+          RAT::Integrate_MPV_to_POFV(reemissionSpectrum));
+      }
+    }
   }
 
   // Retrieve vector of scintillation and reemission time profiles
   // for the material from the optical properties table
   propname.str("");
   propname << "SCINTWAVEFORM" << name;
-  G4MaterialPropertyVector* scintillationWaveform = 
+  G4MaterialPropertyVector* scintillationWaveform =
     matProps->GetProperty(propname.str().c_str());
-
-  propname.str("");
-  propname << "REEMITWAVEFORM" << name;
-  G4MaterialPropertyVector* reemissionWaveform = 
-    matProps->GetProperty(propname.str().c_str());
-
-  if (scintillationWaveform && !reemissionWaveform) {
-    G4cout << "GLG4Scint: Warning: Using the primary scintillation timing "
-           << "for reemission" << G4endl;
-    reemissionWaveform = scintillationWaveform;
-  }
 
   if (scintillationWaveform) {
     // User-specified scintillation time profile
     fScintillationTimeIntegral = BuildTimeIntegral(scintillationWaveform);
-    fReemissionTimeIntegral = BuildTimeIntegral(reemissionWaveform);
     fOwnTimeIntegral = true;
   }
   else {
     // Use the default
     fScintillationTimeIntegral =
       MyPhysicsTable::GetDefault()->GetEntry(materialIndex)->fScintillationTimeIntegral;
-    fReemissionTimeIntegral = fScintillationTimeIntegral;
     fOwnTimeIntegral = false;
+  }
+
+  if (matProps->ConstPropertyExists("NCOMPONENTS")) {
+    size_t ncomp = (size_t) matProps->GetConstProperty("NCOMPONENTS");
+    fReemissionTimeIntegral.resize(ncomp);
+    for (size_t i=0; i<ncomp; i++) {
+      propname.str("");
+      propname << "REEMITWAVEFORM" << name << i;
+      G4MaterialPropertyVector* reemissionWaveform = 
+        matProps->GetProperty(propname.str().c_str());
+
+      if (!fOwnTimeIntegral) {
+        // This simplifies the ownership rules, could be avoided if necessary.
+        if (isScintillator) {
+          G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+                 << "timing for component reemission" << G4endl;
+        }
+        fReemissionTimeIntegral[i] = fScintillationTimeIntegral;
+      }
+      else {
+        if (!reemissionWaveform) {
+          if (isScintillator) {
+            G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+                   << "timing for component " << i << " reemission" << G4endl;
+          }
+          fReemissionTimeIntegral[i] = BuildTimeIntegral(scintillationWaveform);
+        }
+        else {
+          fReemissionTimeIntegral[i] = BuildTimeIntegral(reemissionWaveform);
+        }
+      }
+    }
+  }
+  else {
+    propname.str("");
+    propname << "REEMITWAVEFORM" << name;
+    G4MaterialPropertyVector* reemissionWaveform = 
+      matProps->GetProperty(propname.str().c_str());
+
+    if (!fOwnTimeIntegral) {
+      // This simplifies the ownership rules, could be avoided if necessary.
+      if (isScintillator) {
+        G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+               << "timing for reemission" << G4endl;
+      }
+      fReemissionTimeIntegral.push_back(fScintillationTimeIntegral);
+    }
+    else {
+      if (!reemissionWaveform) {
+        if (isScintillator) {
+          G4cout << "GLG4Scint: Warning: Using the primary scintillation "
+                 << "timing for reemission" << G4endl;
+        }
+        fReemissionTimeIntegral.push_back(BuildTimeIntegral(scintillationWaveform));
+      }
+      else {
+        fReemissionTimeIntegral.push_back(BuildTimeIntegral(reemissionWaveform));
+      }
+    }
   }
 
   // Retrieve vector of scintillation "modifications"

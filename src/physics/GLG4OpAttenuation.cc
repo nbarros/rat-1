@@ -77,7 +77,7 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
     material->GetMaterialPropertiesTable();
 
   G4double opScatFrac = 0;
-  G4int componentIndex = -1;
+  G4int componentIndex = 0;
 
   if (materialPropertyTable) {
     std::stringstream scatteringPropertyName("OPSCATFRAC");

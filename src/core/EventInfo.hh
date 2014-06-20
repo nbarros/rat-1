@@ -18,7 +18,7 @@ public:
     numReemitPhoton = 0;
     extTriggerType = 0;
     extTriggerTime = 0.0;
-    opticsComponentIndex = -1;
+    opticsComponentIndex = 0;
   };
 
   virtual ~EventInfo() { delete fCalib; }
@@ -67,8 +67,6 @@ public:
    * absorbs opticalphotons) to GLG4Scint (which reemits them) so that we
    * can use the correct reemission spectrum/timing for the component
    * that did the absorbing.
-   *
-   * -1 means "unset" -- probably because the component model isn't used.
    */
   int opticsComponentIndex;
 
