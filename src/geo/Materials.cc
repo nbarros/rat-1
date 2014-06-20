@@ -667,11 +667,13 @@ void Materials::LoadOptics() {
 
       for (it=cpm->begin(); it!=cpm->end(); it++) {
         std::string name = it->first;
-        if (name.find("OPSCATFRAC") != std::string::npos      ||
-            name.find("ABSLENGTH") != std::string::npos       ||
-            name.find("REEMISSION") != std::string::npos      ||
+        if (name.find("OPSCATFRAC")      != std::string::npos ||
+            name.find("ABSLENGTH")       != std::string::npos ||
+            name.find("SCINTILLATION")   != std::string::npos ||
+            name.find("SCINTWAVEFORM")   != std::string::npos ||
+            name.find("REEMISSION")      != std::string::npos ||
             name.find("REEMISSION_PROB") != std::string::npos ||
-            name.find("REEMIT_WAVEFORM") != std::string::npos) {
+            name.find("REEMITWAVEFORM")  != std::string::npos) {
 
           // FIXME debugging output
           G4cout << compname << " has property " << name << G4endl;

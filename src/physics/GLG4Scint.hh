@@ -1,92 +1,6 @@
 #ifndef __GLG4Scint__
 #define __GLG4Scint__
 
-/**
- * @class GLG4Scint
- *
- * Declares GLG4Scint class and helpers.
- * 
- * This file is part of the GenericLAND software library.
- *
- * @author Glenn Horton-Smith (Tohoku) 28-Jan-1999
- *
- * GLG4Scint is an extremely modified version of the G4Scintillation
- * process, so much so that it's not even a G4Process anymore!
- * Features include arbitrary scintillation light time profile and
- * spectra, Birks' law, particle-dependent specification of all
- * parameters, and reemission of optical photons killed by other processes.
- *
- *   - Has a GenericPostPostStepDoIt() function (note two "Post"s)
- *     instead of a PostStepDoIt() function.  GenericPostPostStepDoIt()
- *     should be called by user in UserSteppingAction.  This guarantees
- *     that GLG4Scint will absolutely be the last process considered, and
- *     will definitely see the energy loss by charged particles accurately.
- *
- *   - Modified to allow specification of absolute yield spectra,
- *     resolution scale, Birk's-law coefficient, and digitized waveform,
- *     customized for medium and (optionally) particle type.
- *
- *   - No longer calls G4MaterialPropertiesTable::GetProperty() in
- *     [Post]PostStepDoit() -- all needed data can be found quickly in
- *     the internal physics table.
- *
- *   - Uses poisson random distribution for number of photons if
- *     mean number of photons <= 12.
- *
- *   - The total scintillation yield is now found implicitly from
- *     the integral of the scintillation spectrum, which must now be
- *     in units of photons per photon energy.
- *
- *   - The above feature has been modified by Dario Motta: a scintillation yield
- *     CAN be defined and -if found- used instead of the implicit integral of the
- *     scintillation spectrum. This allows having scintillators with the same
- *     spectrum, but different light yields.
- *
- *   - The materials property tables used are
- *       SCINTILLATION  ==  scintillation spectrum
- *       SCINTWAVEFORM  ==  scintillation waveform or time constant
- *       SCINTMOD       ==  resolution scale, Birk's constant, reference dE/dx
- *
- *   - SCINTILLATION is required in each scintillating medium.
- *     (Okay to omit if you don't want the medium to scintillate.)
- *
- *   - If SCINTWAVEFORM is missing, uses exponential waveform with default
- *     ScintillationTime.  If SCINTWAVEFORM contains negative "Momentum"'s
- *     then each "Momentum" is the decay time and its corresponding value
- *     is the relative strength of that exponential decay.
- *     Otherwise, the "PhotonEnergy" of each element is a time, and the
- *     Value of each element is the relative strength.
- *
- *   - Default values of resolution scale (=1.0), Birk's constant (=0.0)
- *     and reference dE/dx (=0.0) are used if all or part of SCINTMOD is
- *     is missing.  SCINTMOD "PhotonEnergy" values should be set to the
- *     index number (0.0, 1.0, 2.0, with no units).
- *
- *   - Birk's law (see 1998 Particle Data Booklet eq. 25.1) is implemented
- *     as
- *  yield(dE/dx) = yield_ref * dE/dx * (1 + kb*(dE/dx)_ref) / (1 + kb*(dE/dx)).
- *     I.e., the scintillation spectrum given in SCINTILLATION is
- *     measured for particles with dE/dx = (dE/dx)_ref.  The usual
- *     formula is recovered if (dE/dx)_ref = 0.0 (the default).
- *     This is useful if you have an empirically-measured spectrum for
- *     some densely-ionizing particle (like an alpha).
- *
- *   - The constructor now accepts an additional string argument, tablename,
- *     which allows selection of alternate property tables.  E.g,
- *     tablename = "neutron" might be used to allow specification of a
- *     different waveform for scintillation due to neutron energy deposition.
- *     The code then searches for tables with names of the form
- *        "SCINTILLATIONneutron"
- *     If it finds such a table, that table is used in preference to
- *     the default (un-suffixed) table when stepping particles of that type.
- *
- *   - The process generates at most maxTracksPerStep secondaries per step.
- *     If more "real" photons are needed, it increases the weight of the
- *     tracked opticalphotons.  Opticalphotons are thus macro-particles in
- *     the high-scintillation case.  The code preserves an integer number
- *     of real photons per macro-particle.
- */
-
 #include <globals.hh>
 #include <local_g4compat.hh>
 #include <templates.hh>
@@ -112,6 +26,98 @@
 class G4UIcommand;
 class G4UIdirectory;
 
+/**
+ * @class GLG4Scint
+ *
+ * Declares GLG4Scint class and helpers.
+ * 
+ * This file is part of the GenericLAND software library.
+ *
+ * @author Glenn Horton-Smith (Tohoku) 28-Jan-1999
+ *
+ * GLG4Scint is an extremely modified version of the G4Scintillation
+ * process, so much so that it's not even a G4Process anymore!
+ * Features include arbitrary scintillation light time profile and
+ * spectra, Birks' law, particle-dependent specification of all
+ * parameters, and reemission of optical photons killed by other processes.
+ *
+ *   - Has a GenericPostPostStepDoIt() function (note two "Post"s)
+ *     instead of a PostStepDoIt() function. GenericPostPostStepDoIt()
+ *     should be called by user in UserSteppingAction. This guarantees
+ *     that GLG4Scint will absolutely be the last process considered, and
+ *     will definitely see the energy loss by charged particles accurately.
+ *
+ *   - Modified to allow specification of absolute yield spectra,
+ *     resolution scale, Birk's-law coefficient, and digitized waveform,
+ *     customized for medium and (optionally) particle type.
+ *
+ *   - No longer calls G4MaterialPropertiesTable::GetProperty() in
+ *     [Post]PostStepDoit() -- all needed data can be found quickly in
+ *     the internal physics table.
+ *
+ *   - Uses poisson random distribution for number of photons if
+ *     mean number of photons <= 12.
+ *
+ *   - The total scintillation yield is now found implicitly from
+ *     the integral of the scintillation spectrum, which must now be
+ *     in units of photons per photon energy.
+ *
+ *   - A scintillation yield can be defined and -if found- used instead of
+ *     the implicit integral of the scintillation spectrum. This allows
+ *     having scintillators with the same spectrum, but different light
+ *     yields. (by Dario Motta)
+ *
+ *   - The materials property tables used are
+ *       SCINTILLATION  == scintillation spectrum
+ *       SCINTWAVEFORM  == scintillation waveform or time constants
+ *       SCINTMOD       == resolution scale, Birk's constant, reference dE/dx
+ *       REEMISSION     == reemission spectrum (scintillation for optical photons)
+ *       REEMITWAVEFORM == reemission waveform or time constants
+ *
+ *   - SCINTILLATION is required in each scintillating medium.
+ *     (Okay to omit if you don't want the medium to scintillate.)
+ *
+ *   - If SCINTWAVEFORM is missing, uses exponential waveform with default
+ *     scintillation time. If SCINTWAVEFORM contains negative "momenta"
+ *     then each "momentum" is the decay time and its corresponding value
+ *     is the relative strength of that exponential decay.
+ *     Otherwise, the "photon nnergy" of each element is a time, and the
+ *     Value of each element is the relative strength.
+ *
+ *   - Default values of resolution scale (=1.0), Birk's constant (=0.0)
+ *     and reference dE/dx (=0.0) are used if all or part of SCINTMOD is
+ *     is missing.  SCINTMOD "photon energy" values should be set to the
+ *     index number (0.0, 1.0, 2.0, with no units).
+ *
+ *   - Birk's law (see 1998 Particle Data Booklet eq. 25.1) is implemented
+ *     as:
+ *
+ *       yield(dE/dx) =
+ *           yield_ref * dE/dx * (1 + kb*(dE/dx)_ref) / (1 + kb*(dE/dx)).
+ *
+ *     I.e. the scintillation spectrum given in SCINTILLATION is
+ *     measured for particles with dE/dx = (dE/dx)_ref. The usual
+ *     formula is recovered if (dE/dx)_ref = 0.0 (the default).
+ *     This is useful if you have an empirically-measured spectrum for
+ *     some densely-ionizing particle (like an alpha).
+ *
+ *   - The constructor accepts an additional string argument, tablename,
+ *     which allows selection of alternate property tables. For example,
+ *     tablename = "neutron" might be used to allow specification of a
+ *     different waveform for scintillation due to neutron energy deposition.
+ *     The code then searches for tables with names of the form
+ *
+ *        "SCINTILLATIONneutron"
+ *
+ *     If it finds such a table, that table is used in preference to
+ *     the default (un-suffixed) table when stepping particles of that type.
+ *
+ *   - The process generates at most sMaxTracksPerStep secondaries per step.
+ *     If more "real" photons are needed, it increases the weight of the
+ *     tracked opticalphotons. opticalphotons are thus macro-particles in
+ *     the high-scintillation case. The code preserves an integer number
+ *     of real photons per macro-particle.
+ */
 class GLG4Scint : public G4UImessenger {
 public:
   class MyPhysicsTable;
@@ -143,9 +149,7 @@ public:
   void SetNewValue(G4UIcommand* command, G4String newValues);
   G4String GetCurrentValue(G4UIcommand* command);
 
-  /*
-   * Static interface
-   */
+  /* Static interface */
   static G4VParticleChange* GenericPostPostStepDoIt(const G4Step *pStep);
 
   // For energy deposition diagnosis
@@ -232,8 +236,6 @@ protected:
 
   // Enable/disable use of a user-provided constant quenching factor
   static G4bool sUseUserQF;
-
-  //static G4std::vector<GLG4DummyProcess*> reemissionProcessVector;
 };
 
 
@@ -246,21 +248,22 @@ public:
 
   static MyPhysicsTable* FindOrBuild(const G4String& name);
 
-  static const MyPhysicsTable* GetDefault() { return head; }
+  static const MyPhysicsTable* GetDefault() { return sHead; }
 
-  void IncUsedBy(void) { ++used_by_count; }
+  void IncUsedBy(void) { ++fUserCount; }
 
   void DecUsedBy(void) {
-    if (--used_by_count <= 0) {
+    if (--fUserCount <= 0) {
       delete this;
     }
   }
 
   const Entry* GetEntry(int i) const;
 
-  void Dump(void) const;
+  void Dump() const;
 
-  G4String* name;
+  G4String GetName() const { return fName; }
+  void SetName(G4String name) { fName = name; }
 
 private:
   friend class GLG4Scint;
@@ -269,14 +272,14 @@ private:
 
   ~MyPhysicsTable();
 
-  void Build(const G4String& newname);
+  void Build(const G4String& name);
 
-  MyPhysicsTable* next;
-  G4int used_by_count;
-  Entry* data;
-  G4int length;
+  MyPhysicsTable* fNext;
+  G4int fUserCount;
+  std::vector<Entry> fData;
+  G4String fName;
 
-  static MyPhysicsTable* head;
+  static MyPhysicsTable* sHead;
 };
 
 
@@ -285,35 +288,45 @@ private:
  */
 class GLG4Scint::MyPhysicsTable::Entry {
 public:
-  Entry();
-  ~Entry();
-  void Build(const G4String& name, int material_index,
-             G4MaterialPropertiesTable* matprops);
+  Entry() { Initialize(); }
+
+  ~Entry() { Destroy(); }
+
+  // Initialize this object to default values
+  void Initialize();
+
+  // Delete pointer members if we own them
+  void Destroy();
+
+  // Initialize this object using material properties from the provided
+  // table
+  void Build(const G4String& name, int materialIndex,
+             G4MaterialPropertiesTable* matProps);
 
   // Parse a material property vector with scintillation timing into
   // an ordered vector, supporting both time-series data and decay
   // time constants.
-  G4PhysicsOrderedFreeVector*
-  BuildTimeIntegral(G4MaterialPropertyVector* wfdata);
+  static G4PhysicsOrderedFreeVector*
+  BuildTimeIntegral(G4MaterialPropertyVector* waveformData);
 
-  G4PhysicsOrderedFreeVector* spectrumIntegral;
-  G4PhysicsOrderedFreeVector* reemissionIntegral;
-  G4PhysicsOrderedFreeVector* timeIntegral;
-  G4PhysicsOrderedFreeVector* reemissionTimeIntegral;
-  bool ownSpectrumIntegral;
-  bool ownTimeIntegral;
-  G4double resolutionScale;
-  G4double birksConstant;
-  G4double ref_dE_dx;
-  G4double light_yield;
   G4MaterialPropertyVector* fQuenchingArray;
+  G4PhysicsOrderedFreeVector* fScintillationSpectrumIntegral;
+  G4PhysicsOrderedFreeVector* fReemissionSpectrumIntegral;
+  G4PhysicsOrderedFreeVector* fScintillationTimeIntegral;
+  G4PhysicsOrderedFreeVector* fReemissionTimeIntegral;
+  bool fOwnSpectrumIntegral;
+  bool fOwnTimeIntegral;
+  G4double fResolutionScale;
+  G4double fBirksConstant;
+  G4double fRef_dEdx;
+  G4double fLightYield;
 };
 
 
 // Inline method definitions
 
 inline void GLG4Scint::DumpInfo() const {
-  G4cout << "GLG4Scint[" << *(fPhysicsTable->name) << "] {" << G4endl
+  G4cout << "GLG4Scint[" << *(fPhysicsTable->GetName()) << "] {" << G4endl
          << "  fLowerMassLimit=" << fLowerMassLimit << G4endl;
 #ifdef G4DEBUG
   if (fPhysicsTable)
@@ -326,7 +339,7 @@ inline void GLG4Scint::DumpInfo() const {
 
 inline const GLG4Scint::MyPhysicsTable::Entry*
 GLG4Scint::MyPhysicsTable::GetEntry(int i) const {
-  return data + i;
+  return &(fData.at(i));
 }
 
 #endif  // __GLG4Scint__

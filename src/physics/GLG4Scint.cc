@@ -39,7 +39,6 @@ G4std::vector<GLG4Scint*> GLG4Scint::sScintProcessVector;
 G4UIdirectory* GLG4Scint::sUIDirectory = NULL;
 GLG4DummyProcess GLG4Scint::sScintProcess("Scintillation", fUserDefined);
 GLG4DummyProcess GLG4Scint::sReemissionProcess("Reemission", fUserDefined);
-//G4std::vector<GLG4DummyProcess*> GLG4Scint::reemissionProcessVector;
 
 G4bool GLG4Scint::sDoScintillation = true;
 G4bool GLG4Scint::sDoReemission = true;
@@ -198,13 +197,13 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
     }
 
     // Retrieve the light yield or scintillation integral for this material  
-    G4double scintillationYield = physicsEntry->light_yield;
+    G4double scintillationYield = physicsEntry->fLightYield;
 
     G4PhysicsOrderedFreeVector* scintillationIntegral =
-      physicsEntry->spectrumIntegral;
+      physicsEntry->fScintillationSpectrumIntegral;
 
     G4PhysicsOrderedFreeVector* reemissionIntegral =
-      physicsEntry->reemissionIntegral;
+      physicsEntry->fReemissionSpectrumIntegral;
     
     if (!scintillationIntegral && !reemissionIntegral) {
       goto PostStepDoIt_DONE;
@@ -268,7 +267,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
       // Generate primary scintillation photons
 
       // Apply Birks' law
-      G4double birksConstant = physicsEntry->birksConstant;
+      G4double birksConstant = physicsEntry->fBirksConstant;
       G4double quenchedTotalEnergyDeposit = totalEnergyDeposit;
       if (birksConstant != 0) {
         G4double dEdx = totalEnergyDeposit / step.GetStepLength();
@@ -292,7 +291,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
         (scintillationYield *
          GetQuenchingFactor() *
          quenchedTotalEnergyDeposit *
-         (1.0 + birksConstant * (physicsEntry->ref_dE_dx)));
+         (1.0 + birksConstant * (physicsEntry->fRef_dEdx)));
 
       if (meanNumPhotons <= 0) {
         goto PostStepDoIt_DONE;
@@ -311,7 +310,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
          GetMeanPhotonsPerSecondary() /
          RAT::PhotonThinning::GetFactor());
 
-      G4double resolutionScale = physicsEntry->resolutionScale;
+      G4double resolutionScale = physicsEntry->fResolutionScale;
       if (meanNumTracks > 12.0) {
         numSecondaries=
           (G4int)(CLHEP::RandGauss::shoot(meanNumTracks,
@@ -357,10 +356,10 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
     // Now look up waveform information we need to add the secondaries
     G4PhysicsOrderedFreeVector* waveformIntegral;
     if (flagReemission) {
-      waveformIntegral = physicsEntry->reemissionTimeIntegral;
+      waveformIntegral = physicsEntry->fReemissionTimeIntegral;
     }
     else {
-      waveformIntegral = physicsEntry->timeIntegral;
+      waveformIntegral = physicsEntry->fScintillationTimeIntegral;
     }
 
     for (G4int iSecondary=0; iSecondary<numSecondaries; iSecondary++) {
@@ -526,58 +525,62 @@ G4VParticleChange* GLG4Scint::GenericPostPostStepDoIt(const G4Step *step) {
 // GLG4Scint::MyPhysicsTable
 /////////////////////////////////////
 
-GLG4Scint::MyPhysicsTable* GLG4Scint::MyPhysicsTable::head = NULL;
+GLG4Scint::MyPhysicsTable* GLG4Scint::MyPhysicsTable::sHead = NULL;
 
 
-GLG4Scint::MyPhysicsTable::MyPhysicsTable()
-    : name(NULL), next(NULL), used_by_count(0), data(NULL), length(0) {}
+GLG4Scint::MyPhysicsTable::MyPhysicsTable() : fNext(NULL), fUserCount(0) {}
 
 
 GLG4Scint::MyPhysicsTable::~MyPhysicsTable() {
-  if (used_by_count != 0) {
+  if (fUserCount != 0) {
     G4cerr << "Error, GLG4Scint::MyPhysicsTable is being deleted with "
-           << "used_by_count = " << used_by_count << G4endl;
+           << "user count = " << fUserCount << G4endl;
     return;
   }
-  delete name;
-  delete[] data;
 }
 
 
 void GLG4Scint::MyPhysicsTable::Dump() const {
   G4cout << " GLG4Scint::MyPhysicsTable {"  << G4endl
-         << "  name=" << (*name) << G4endl
-         << "  length=" << length << G4endl
-         << "  used_by_count=" << used_by_count << G4endl;
+         << "  fName=" << fName << G4endl
+         << "  fData.size()=" << fData.size() << G4endl
+         << "  fUserCount=" << fUserCount << G4endl;
 
-  for (G4int i=0; i<length; i++) {
-    G4cout << "  data[" << i << "]= { // "
+  for (size_t i=0; i<fData.size(); i++) {
+    G4cout << "  fData[" << i << "]= { // "
            << (*G4Material::GetMaterialTable())[i]->GetName() << G4endl;
-    G4cout << "   spectrumIntegral=";
-    if (data[i].spectrumIntegral)
-      (data[i].spectrumIntegral)->DumpValues();
+    G4cout << "   fScintillationSpectrumIntegral=";
+    if (fData[i].fScintillationSpectrumIntegral)
+      (fData[i].fScintillationSpectrumIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
     
-    G4cout << "   reemissionIntegral=";
-    if (data[i].reemissionIntegral)
-      (data[i].reemissionIntegral)->DumpValues();
+    G4cout << "   fReemissionSpectrumIntegral=";
+    if (fData[i].fReemissionSpectrumIntegral)
+      (fData[i].fReemissionSpectrumIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
       
-    G4cout << "   timeIntegral=";
-    if (data[i].timeIntegral)
-      (data[i].timeIntegral)->DumpValues();
+    G4cout << "   fScintillationTimeIntegral=";
+    if (fData[i].fScintillationTimeIntegral)
+      (fData[i].fScintillationTimeIntegral)->DumpValues();
     else
       G4cout << "NULL" << G4endl;
-      G4cout << "   resolutionScale=" << data[i].resolutionScale
-             << "   birksConstant=" << data[i].birksConstant
-             << "   ref_dE_dx=" << data[i].ref_dE_dx << G4endl
-             << "   light yield=" << data[i].light_yield << G4endl;
+
+    G4cout << "   fReemissionTimeIntegral=";
+    if (fData[i].fReemissionTimeIntegral)
+      (fData[i].fReemissionTimeIntegral)->DumpValues();
+    else
+      G4cout << "NULL" << G4endl;
+
+    G4cout << "   resolutionScale=" << fData[i].fResolutionScale
+           << "   birksConstant=" << fData[i].fBirksConstant
+           << "   ref_dE_dx=" << fData[i].fRef_dEdx << G4endl
+           << "   light yield=" << fData[i].fLightYield << G4endl;
 
     G4cout << "Quenching = " << G4endl;
-    if (data[i].fQuenchingArray != NULL)
-      data[i].fQuenchingArray->DumpValues();
+    if (fData[i].fQuenchingArray != NULL)
+      fData[i].fQuenchingArray->DumpValues();
     else
       G4cout << "NULL" << G4endl << "  }" << G4endl;
   }
@@ -589,45 +592,41 @@ void GLG4Scint::MyPhysicsTable::Dump() const {
 GLG4Scint::MyPhysicsTable*
 GLG4Scint::MyPhysicsTable::FindOrBuild(const G4String& name) {
   // Head should always exist and should always be the default (name=="")
-  if (head == NULL) {
-    head = new MyPhysicsTable;
-    head->Build("");
+  if (sHead == NULL) {
+    sHead = new MyPhysicsTable;
+    sHead->Build("");
   }
 
-  MyPhysicsTable* rover = head;
-  while (rover) {
-    if (name == *(rover->name))
-      return rover;
-    rover = rover->next;
+  MyPhysicsTable* pTable = sHead;
+  while (pTable) {
+    if (name == *(pTable->fName))
+      return pTable;
+    pTable = pTable->fNext;
   }
 
-  rover = new MyPhysicsTable;
-  rover->Build(name);
-  rover->next = head->next;  // Always keep head pointing to default
-  head->next = rover;
+  pTable = new MyPhysicsTable;
+  pTable->Build(name);
+  pTable->fNext = sHead->fNext;  // Always keep head pointing to default
+  sHead->fNext = pTable;
 
-  return rover;
+  return pTable;
 }
 
 
 void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
-  delete name;
-  delete[] data;
+  fData.clear();
 
   // Name in the physics list, i.e. "" or "heavy" or "alpha" etc.
   // This is a suffix on material property vectors in RATDB
-  name = new G4String(newname);
+  fName = "";
 
-  const G4MaterialTable* theMaterialTable = G4Material::GetMaterialTable();
-  length = G4Material::GetNumberOfMaterials();
-
-  // vector of Entrys for everything in MATERIALS
-  data = new Entry[length];
+  const G4MaterialTable* materialTable = G4Material::GetMaterialTable();
 
   // Create new physics tables
-  for (G4int i=0; i<length; i++) {
-    const G4Material* aMaterial = (*theMaterialTable)[i];
-    data[i].Build(*name, i, aMaterial->GetMaterialPropertiesTable());
+  fData.resize(G4Material::GetNumberOfMaterials());
+  for (size_t i=0; i<fData.size(); i++) {
+    const G4Material* material = (*materialTable)[i];
+    fData[i].Build(fName, i, material->GetMaterialPropertiesTable());
   }
 }
 
@@ -635,66 +634,74 @@ void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
 // GLG4Scint::MyPhysicsTable::Entry
 /////////////////////////////////////
 
-GLG4Scint::MyPhysicsTable::Entry::Entry()
-    : spectrumIntegral(NULL), reemissionIntegral(NULL),
-      timeIntegral(NULL), reemissionTimeIntegral(NULL),
-      ownSpectrumIntegral(false), ownTimeIntegral(false),
-      resolutionScale(1), birksConstant(0), ref_dE_dx(0), light_yield(0),
-      fQuenchingArray(NULL) {}
+void GLG4Scint::MyPhysicsTable::Entry::Initialize() {
+  fQuenchingArray = NULL;
+  fScintillationSpectrumIntegral = NULL;
+  fReemissionSpectrumIntegral = NULL;
+  fScintillationTimeIntegral = NULL;
+  fReemissionTimeIntegral = NULL;
+  fOwnSpectrumIntegral = false;
+  fOwnTimeIntegral = false;
+  fResolutionScale = 1.0;
+  fBirksConstant = 0.0;
+  fRef_dEdx = 0.0;
+  fLightYield = 0.0;
+}
 
-
-GLG4Scint::MyPhysicsTable::Entry::~Entry() {
-  if (ownSpectrumIntegral) {
-   delete spectrumIntegral;
-   delete reemissionIntegral;
+void GLG4Scint::MyPhysicsTable::Entry::Destroy() {
+  if (fOwnSpectrumIntegral) {
+   delete fScintillationSpectrumIntegral;
+   delete fReemissionSpectrumIntegral;
   }
 
-  if (ownTimeIntegral) {
-    delete timeIntegral;
-    delete reemissionTimeIntegral;
+  if (fOwnTimeIntegral) {
+    delete fScintillationTimeIntegral;
+    delete fReemissionTimeIntegral;
   }
 
   delete fQuenchingArray;
 }
 
+
 G4PhysicsOrderedFreeVector*
-GLG4Scint::MyPhysicsTable::Entry::BuildTimeIntegral(G4MaterialPropertyVector* wfdata) {
+GLG4Scint::MyPhysicsTable::Entry::BuildTimeIntegral(
+    G4MaterialPropertyVector* waveformData) {
   G4PhysicsOrderedFreeVector* integral = NULL;
 
   // Do we have time-series or decay-time data?
-  if (wfdata->GetMinLowEdgeEnergy() >= 0.0) {
+  if (waveformData->GetMinLowEdgeEnergy() >= 0.0) {
     // We have digitized waveform (time-series) data
-    integral = RAT::Integrate_MPV_to_POFV(wfdata);
+    integral = RAT::Integrate_MPV_to_POFV(waveformData);
   }
   else {
     // We have decay-time data. Sanity-check user's values:
-    if (wfdata->Energy(wfdata->GetVectorLength() - 1) > 0.0) {
+    if (waveformData->Energy(waveformData->GetVectorLength() - 1) > 0.0) {
       G4cerr << "GLG4Scint::MyPhysicsTable::Entry::Build():  "
              << "SCINTWAVEFORM "
              << " has both positive and negative X values.  "
              << " Undefined results will ensue!" << G4endl;
     }
 
-    G4double maxtime = -3.0 * (wfdata->GetMinLowEdgeEnergy());
-    G4double mintime = -1.0 * (wfdata->GetMaxLowEdgeEnergy());
-    G4double bin_width = mintime / 100;
-    int nbins = (int) (maxtime / bin_width) + 1;
+    G4double maxtime = -3.0 * (waveformData->GetMinLowEdgeEnergy());
+    G4double mintime = -1.0 * (waveformData->GetMaxLowEdgeEnergy());
+    G4double binwidth = mintime / 100;
+    size_t nbins = (size_t) (maxtime / binwidth) + 1;
     G4double* tval = new G4double[nbins];
     G4double* ival = new G4double[nbins];
-    for (int i=0; i<nbins; i++) {
+    for (size_t i=0; i<nbins; i++) {
       tval[i] = i * maxtime / nbins;
       ival[i] = 0.0;
     }
 
-    for (unsigned int j=0; j<wfdata->GetVectorLength(); j++) {
-      G4double ampl = (*wfdata)[j];
-      G4double decy = wfdata->Energy(j);
-      for (int i=0; i<nbins; i++) {
+    for (unsigned int j=0; j<waveformData->GetVectorLength(); j++) {
+      G4double ampl = (*waveformData)[j];
+      G4double decy = waveformData->Energy(j);
+      for (size_t i=0; i<nbins; i++) {
         ival[i] += ampl * (1.0 - exp(tval[i] / decy));
       }
     }
 
-    for (int i=0; i<nbins; i++) {
+    for (size_t i=0; i<nbins; i++) {
       ival[i] /= ival[nbins-1];
     }
 
@@ -710,149 +717,137 @@ GLG4Scint::MyPhysicsTable::Entry::BuildTimeIntegral(G4MaterialPropertyVector* wf
 }
 
 
-void GLG4Scint::MyPhysicsTable::Entry::Build(
-    const G4String& name,
-    int i,
-    G4MaterialPropertiesTable *aMaterialPropertiesTable) {
-  // Delete old data
-  if (ownSpectrumIntegral) {
-    delete spectrumIntegral;
-    delete reemissionIntegral;
-  }
-
-  if (ownTimeIntegral) {
-    delete timeIntegral;
-    delete reemissionTimeIntegral;
-  }
-
-  // Set defaults
-  spectrumIntegral = reemissionIntegral = NULL;
-  timeIntegral = reemissionTimeIntegral = NULL;
-  resolutionScale = 1.0;
-  birksConstant = ref_dE_dx = 0.0;    
-  light_yield = 0.0;    
-  fQuenchingArray = NULL;
+void
+GLG4Scint::MyPhysicsTable::Entry::Build(const G4String& name,
+                                        int materialIndex,
+                                        G4MaterialPropertiesTable* matProps) {
+  // Reset to defaults
+  Destroy();
+  Initialize();
 
   // Exit, leaving default values, if no material properties
-  if (!aMaterialPropertiesTable) {
+  if (!matProps) {
     return;
   }
   
   // Retrieve vector of scintillation andreemission wavelength intensity
   // for the material from the optical properties table
-  std::stringstream property_string;
+  std::stringstream propname;
 
-  property_string.str("");
-  property_string << "SCINTILLATION" << name;
-  G4MaterialPropertyVector* theScintillationLightVector = 
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+  propname.str("");
+  propname << "SCINTILLATION" << name;
+  G4MaterialPropertyVector* scintillationSpectrumVector = 
+    matProps->GetProperty(propname.str().c_str());
 
-  property_string.str("");
-  property_string << "REEMISSION" << name;
-  G4MaterialPropertyVector* theReemissionLightVector =
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+  propname.str("");
+  propname << "REEMISSION" << name;
+  G4MaterialPropertyVector* reemissionSpectrumVector =
+    matProps->GetProperty(propname.str().c_str());
 
-  if (theScintillationLightVector && !theReemissionLightVector) {
+  if (scintillationSpectrumVector && !reemissionSpectrumVector) {
     G4cout << "Warning! Found a scintillator without Re-emission spectrum";
     G4cout << " (probably a scintillator without WLS)" << G4endl;
     G4cout << "I will assume that for this material this spectrum is equal ";
     G4cout << "to the primary scintillation spectrum." << G4endl;
-    theReemissionLightVector = theScintillationLightVector;
+    reemissionSpectrumVector = scintillationSpectrumVector;
   }
      
-  if (theScintillationLightVector) {
-    if (aMaterialPropertiesTable->ConstPropertyExists("LIGHT_YIELD"))
-      light_yield=aMaterialPropertiesTable->GetConstProperty("LIGHT_YIELD");
+  if (scintillationSpectrumVector) {
+    if (matProps->ConstPropertyExists("LIGHT_YIELD"))
+      fLightYield=matProps->GetConstProperty("LIGHT_YIELD");
     else { 
       G4cout << "Warning! Found a scintillator without LIGHT_YIELD parameter.";
       G4cout << "\nI will assume that for this material this parameter is ";
       G4cout << "implicit in the scintillation integral." << G4endl;
 
       // If no light yield, it's no scintillator
-      theScintillationLightVector = NULL;
+      scintillationSpectrumVector = NULL;
     }
 
     // Find the integral
-    if (theScintillationLightVector == NULL) {
-      spectrumIntegral = NULL;
+    if (!scintillationSpectrumVector) {
+      fScintillationSpectrumIntegral = NULL;
     }
     else {
-      spectrumIntegral = RAT::Integrate_MPV_to_POFV(theScintillationLightVector);
+      fScintillationSpectrumIntegral =
+        RAT::Integrate_MPV_to_POFV(scintillationSpectrumVector);
     }
 
-    reemissionIntegral = RAT::Integrate_MPV_to_POFV(theReemissionLightVector);   
-    ownSpectrumIntegral = true;
+    fReemissionSpectrumIntegral =
+      RAT::Integrate_MPV_to_POFV(reemissionSpectrumVector);   
+    fOwnSpectrumIntegral = true;
   }
   else {
     // Use default integral (possibly null)
-    spectrumIntegral =
-      MyPhysicsTable::GetDefault()->GetEntry(i)->spectrumIntegral;
-    reemissionIntegral = spectrumIntegral;
-    ownSpectrumIntegral = false;
+    fScintillationSpectrumIntegral =
+      MyPhysicsTable::GetDefault()->GetEntry(materialIndex)->fScintillationSpectrumIntegral;
+    fReemissionSpectrumIntegral = fScintillationSpectrumIntegral;
+    fOwnSpectrumIntegral = false;
   }
 
   // Retrieve vector of scintillation and reemission time profiles
   // for the material from the optical properties table
-  property_string.str("");
-  property_string << "SCINTWAVEFORM" << name;
-  G4MaterialPropertyVector* theWaveForm = 
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+  propname.str("");
+  propname << "SCINTWAVEFORM" << name;
+  G4MaterialPropertyVector* scintillationWaveform = 
+    matProps->GetProperty(propname.str().c_str());
 
-  property_string.str("");
-  property_string << "REEMITWAVEFORM" << name;
-  G4MaterialPropertyVector* theReemissionWaveForm = 
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+  propname.str("");
+  propname << "REEMITWAVEFORM" << name;
+  G4MaterialPropertyVector* reemissionWaveform = 
+    matProps->GetProperty(propname.str().c_str());
 
-  if (theWaveForm && !theReemissionWaveForm) {
+  if (scintillationWaveform && !reemissionWaveform) {
     G4cout << "GLG4Scint: Warning: Using the primary scintillation timing "
            << "for reemission" << G4endl;
-    theReemissionWaveForm = theWaveForm;
+    reemissionWaveform = scintillationWaveform;
   }
 
-  if (theWaveForm) {
+  if (scintillationWaveform) {
     // User-specified scintillation time profile
-    timeIntegral = BuildTimeIntegral(theWaveForm);
-    reemissionTimeIntegral = BuildTimeIntegral(theReemissionWaveForm);
-    ownTimeIntegral = true;
+    fScintillationTimeIntegral = BuildTimeIntegral(scintillationWaveform);
+    fReemissionTimeIntegral = BuildTimeIntegral(reemissionWaveform);
+    fOwnTimeIntegral = true;
   }
   else {
     // Use the default
-    timeIntegral = MyPhysicsTable::GetDefault()->GetEntry(i)->timeIntegral;
-    reemissionTimeIntegral = timeIntegral;
-    ownTimeIntegral = false;
+    fScintillationTimeIntegral =
+      MyPhysicsTable::GetDefault()->GetEntry(materialIndex)->fScintillationTimeIntegral;
+    fReemissionTimeIntegral = fScintillationTimeIntegral;
+    fOwnTimeIntegral = false;
   }
 
   // Retrieve vector of scintillation "modifications"
   // for the material from the material's optical
   // properties table ("SCINTMOD")    
-  property_string.str("");
-  property_string << "SCINTMOD" << name;
-  G4MaterialPropertyVector* theScintModVector = 
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+  propname.str("");
+  propname << "SCINTMOD" << name;
+  G4MaterialPropertyVector* scintModVector = 
+    matProps->GetProperty(propname.str().c_str());
 
-  if (theScintModVector == NULL) {
-    // Use default if not particle-specific value given
-    theScintModVector = 
-      aMaterialPropertiesTable->GetProperty("SCINTMOD");
+  // Parse the entries in SCINTMOD:
+  //
+  //   0 - ResolutionScale
+  //   1 - BirksConstant
+  //   2 - Ref_dE_dx
+  //
+  // Use default if no particle-specific value is given
+  if (!scintModVector) {
+    scintModVector = matProps->GetProperty("SCINTMOD");
   }
-  
-  if (theScintModVector) {
-    // Parse the entries in SCINTMOD:
-    //   0 - ResolutionScale
-    //   1 - BirksConstant
-    //   2 - Ref_dE_dx
-    for (unsigned int i=0; i<theScintModVector->GetVectorLength(); i++) {
-      G4double key = theScintModVector->Energy(i);
-      G4double value = (*theScintModVector)[i];
+  if (scintModVector) {
+    for (unsigned int i=0; i<scintModVector->GetVectorLength(); i++) {
+      G4double key = scintModVector->Energy(i);
+      G4double value = (*scintModVector)[i];
 
       if (key == 0) {
-        resolutionScale = value;
+        fResolutionScale = value;
       }
       else if (key == 1) {
-        birksConstant = value;
+        fBirksConstant = value;
       }
       else if (key == 2) {
-        ref_dE_dx = value;
+        fRef_dEdx = value;
       }
       else {
         G4cerr << "GLG4Scint::MyPhysicsTable::Entry::Build: "
@@ -862,10 +857,11 @@ void GLG4Scint::MyPhysicsTable::Entry::Build(
     }
   }
 
-  property_string.str("");
-  property_string << "QF" << name;
+  // Retrieve any energy-dependent quenching factor array
+  propname.str("");
+  propname << "QF" << name;
   fQuenchingArray =
-    aMaterialPropertiesTable->GetProperty(property_string.str().c_str());
+    matProps->GetProperty(propname.str().c_str());
 }
 
 
