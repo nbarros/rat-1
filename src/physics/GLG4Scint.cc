@@ -628,7 +628,6 @@ void GLG4Scint::MyPhysicsTable::Build(const G4String& newname) {
   fData.resize(G4Material::GetNumberOfMaterials());
   for (size_t i=0; i<fData.size(); i++) {
     const G4Material* material = (*materialTable)[i];
-    G4cout << "Building " << material->GetName() << G4endl;
     fData[i].Build(fName, i, material->GetMaterialPropertiesTable());
   }
 }

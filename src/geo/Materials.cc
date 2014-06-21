@@ -669,15 +669,15 @@ void Materials::LoadOptics() {
         std::string name = it->first;
         if (name.find("OPSCATFRAC")      != std::string::npos ||
             name.find("ABSLENGTH")       != std::string::npos ||
+            name.find("SCINTILLATION")   != std::string::npos ||
+            name.find("SCINTWAVEFORM")   != std::string::npos ||
+            name.find("SCINTMOD")        != std::string::npos ||
             name.find("REEMISSION")      != std::string::npos ||
             name.find("REEMISSION_PROB") != std::string::npos ||
             name.find("REEMITWAVEFORM")  != std::string::npos) {
 
-          // FIXME debugging output
-          G4cout << compname << " has property " << name << G4endl;
-
           Log::Assert(mpm->find(name) == mpm->end(),
-                      "Materials: Composite material cannot contain the same properties as components");
+                      dformat("Materials: Dulicate property %s", name.c_str()));
 
           if (name.find("ABSLENGTH") != std::string::npos) {
             G4MaterialPropertyVector* attVector = it->second;
@@ -701,10 +701,15 @@ void Materials::LoadOptics() {
             }
           }
 
-          // FIXME debugging output
           std::stringstream ss;
-          ss << name << i;
-          G4cout << "Adding " << ss.str() << G4endl;
+          ss << name;
+
+          // We'll only add one primary scintillator
+          if (name.find("SCINTILLATION") == std::string::npos &&
+              name.find("SCINTWAVEFORM") == std::string::npos &&
+              name.find("SCINTMOD")      == std::string::npos) {
+            ss << i;
+          }
 
           mpt->AddProperty(ss.str().c_str(), it->second);
         }
