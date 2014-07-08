@@ -52,7 +52,6 @@ G4double GLG4Scint::sTotEdepQuenched = 0.0;
 G4double GLG4Scint::sTotEdepTime = 0.0;
 G4ThreeVector GLG4Scint::sScintCentroidSum(0.0, 0.0, 0.0);
 
-
 GLG4Scint::GLG4Scint(const G4String& tablename, G4double lowerMassLimit)
     : fLowerMassLimit(lowerMassLimit) {
   fPhysicsTable = MyPhysicsTable::FindOrBuild(tablename);

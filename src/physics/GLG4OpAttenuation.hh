@@ -15,7 +15,7 @@ class GLG4OpAttenuation : public G4OpAbsorption {
 public:
   GLG4OpAttenuation(const G4String& processName="Attenuation");
 
-  virtual ~GLG4OpAttenuation();
+  virtual ~GLG4OpAttenuation() {}
 
   // This is the method implementing attenuation of optical 
   // photons.  Fraction of photons scattered or absorbed is

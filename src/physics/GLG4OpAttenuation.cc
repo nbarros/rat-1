@@ -1,3 +1,4 @@
+#include <limits>
 #include <G4ios.hh>
 #include <G4Event.hh>
 #include <G4EventManager.hh>
@@ -27,7 +28,6 @@ static int TableInitialized = 0;
 
 GLG4DummyProcess GLG4OpAttenuation::fgAttenuation("Attenuation");
 GLG4DummyProcess GLG4OpAttenuation::fgScattering("Scattering");
-
 
 static void InitializeTable() {
   double angTolerance =
@@ -61,9 +61,6 @@ GLG4OpAttenuation::GLG4OpAttenuation(const G4String& processName)
 }
 
 
-GLG4OpAttenuation::~GLG4OpAttenuation() {}
-
-
 G4VParticleChange*
 GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
   aParticleChange.Initialize(track);
@@ -80,14 +77,15 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
   G4int componentIndex = 0;
 
   if (materialPropertyTable) {
-    std::stringstream scatteringPropertyName("OPSCATFRAC");
+    std::stringstream scatteringPropertyName;
+    scatteringPropertyName.str("OPSCATFRAC");
 
     // For multi-component, decide which one attenuates
     if (materialPropertyTable->ConstPropertyExists("NCOMPONENTS")) {
-      G4double shortest = DBL_MAX;
+      G4double shortest = std::numeric_limits<double>::max();
       G4int ncomp = (G4int) materialPropertyTable->GetConstProperty("NCOMPONENTS");
       for (G4int i=0; i<ncomp; i++) {
-        G4double attLength = DBL_MAX;
+        G4double attLength = std::numeric_limits<double>::max();
 
         std::stringstream propname("");
         propname << "ABSLENGTH" << i;
@@ -104,10 +102,7 @@ GLG4OpAttenuation::PostStepDoIt(const G4Track& track, const G4Step& step) {
           componentIndex = i;
         }
       }
-      scatteringPropertyName << componentIndex;
-
-      // FIXME debugging output
-      //G4cout << ">>> Attenuated by component " << compIndex << G4endl;
+      scatteringPropertyName << "OPSCATFRAC" << componentIndex;
     }
 
     G4MaterialPropertyVector* opScatVector =
