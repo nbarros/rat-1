@@ -310,6 +310,7 @@ public:
   BuildTimeIntegral(G4MaterialPropertyVector* waveformData);
 
   G4MaterialPropertyVector* fQuenchingArray;
+  std::vector<G4MaterialPropertyVector*> fReemissionProbVector;
   std::vector<G4PhysicsOrderedFreeVector*> fReemissionSpectrumIntegral;
   std::vector<G4PhysicsOrderedFreeVector*> fReemissionTimeIntegral;
   G4PhysicsOrderedFreeVector* fScintillationSpectrumIntegral;

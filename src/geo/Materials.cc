@@ -603,8 +603,9 @@ void Materials::LoadOptics() {
               attenuation_coeff_x = new G4double[n_entries];
               attenuation_coeff_y = new G4double[n_entries];
               for (G4int ientry=0; ientry<n_entries; ientry++) {
-                attenuation_coeff_x[ientry] = attVector->Energy(ientry);
-                attenuation_coeff_y[ientry] = 1.0 / attVector->Value(ientry);
+                G4double energy = attVector->Energy(ientry);
+                attenuation_coeff_x[ientry] = energy;
+                attenuation_coeff_y[ientry] = 1.0 / attVector->Value(energy);
               }
             }
             else {
@@ -631,19 +632,16 @@ void Materials::LoadOptics() {
     }
 
     // Build total attenuation length from components if needed
+    G4MaterialPropertyVector* pv_abs = NULL;
     if (n_entries > 0) {
-      G4double* attenuation_length_y = new G4double[n_entries];
-      for (G4int i=0; i<n_entries; i++) {
-        attenuation_length_y[i] = 1.0 / attenuation_coeff_y[i];
+      pv_abs = new G4MaterialPropertyVector();
+      for (G4int ientry=0; ientry<n_entries; ientry++) {
+        pv_abs->InsertValues(attenuation_coeff_x[ientry],
+                             1.0 / attenuation_coeff_y[ientry]);
       }
-
-      G4MaterialPropertyVector* pv_abs =
-        new G4MaterialPropertyVector(attenuation_coeff_x,
-                                     attenuation_length_y,
-                                     n_entries);
-
-      mpt->AddProperty("ABSLENGTH", pv_abs);
     }
+
+    mpt->AddProperty("ABSLENGTH", pv_abs);
 
     // FIXME debugging output
     G4cout << "----" << G4endl;

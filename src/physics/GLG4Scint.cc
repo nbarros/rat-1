@@ -209,7 +209,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
       reemissionIntegral =
         physicsEntry->fReemissionSpectrumIntegral[componentIndex];
     }
-    
+
     if (!scintillationIntegral && !reemissionIntegral) {
       goto PostStepDoIt_DONE;
     }
@@ -238,13 +238,11 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
 
     if (flagReemission) {
       // Generate reemission photons
-      G4MaterialPropertiesTable* mptScint =
-        material->GetMaterialPropertiesTable();
-
-      std::stringstream propname("");
-      propname << "REEMISSION_PROB" << componentIndex;
-      G4MaterialPropertyVector* reemissionProbVector =
-        mptScint->GetProperty(propname.str().c_str());
+      G4MaterialPropertyVector* reemissionProbVector = NULL;
+      if (!physicsEntry->fReemissionProbVector.empty()) {
+        reemissionProbVector =
+          physicsEntry->fReemissionProbVector[componentIndex];
+      }
 
       if (!reemissionProbVector) {
         goto PostStepDoIt_DONE;
@@ -387,6 +385,7 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
                                                   sampledMomentum);
 
         if (sampledMomentum > track.GetKineticEnergy()) {
+std::cout << "GLG4SCINT: unfortunate momentum for " << componentIndex << ", die" << std::endl;
            goto PostStepDoIt_DONE;
         }
       }
@@ -451,9 +450,10 @@ GLG4Scint::PostPostStepDoIt(const G4Track& track, const G4Step& step) {
       }
 
       // Delay for scintillation time
+      G4double sampledDelayTime = 0;
       if (waveformIntegral) {
         G4double wfSample = G4UniformRand() * waveformIntegral->GetMaxValue();
-        G4double sampledDelayTime = waveformIntegral->GetEnergy(wfSample);
+        sampledDelayTime = waveformIntegral->GetEnergy(wfSample);
         deltaTime += sampledDelayTime;
       }
 
@@ -902,12 +902,26 @@ GLG4Scint::MyPhysicsTable::Entry::Build(const G4String& name,
     }
   }
 
-  // Retrieve vector of scintillation "modifications"
-  // for the material from the material's optical
-  // properties table ("SCINTMOD")    
+  // Retrieve the reemission probabilities
+  if (matProps->ConstPropertyExists("NCOMPONENTS")) {
+    size_t ncomp = (size_t) matProps->GetConstProperty("NCOMPONENTS");
+    fReemissionProbVector.resize(ncomp);
+    for (size_t i=0; i<ncomp; i++) {
+      propname.str("");
+      propname << "REEMISSION_PROB" << i;
+      fReemissionProbVector[i] =
+        matProps->GetProperty(propname.str().c_str());
+    }
+  }
+  else {
+    fReemissionProbVector.push_back(matProps->GetProperty("REEMISSION_PROB"));
+  }
+
+  // Retrieve vector of scintillation "modifications" for the material from
+  // the material's optical properties table ("SCINTMOD")
   propname.str("");
   propname << "SCINTMOD" << name;
-  G4MaterialPropertyVector* scintModVector = 
+  G4MaterialPropertyVector* scintModVector =
     matProps->GetProperty(propname.str().c_str());
 
   // Parse the entries in SCINTMOD:
