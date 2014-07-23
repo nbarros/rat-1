@@ -29,6 +29,7 @@
 #include <RAT/GeoTubeIntersectionFactory.hh>
 #include <RAT/GeoPerfBoxFactory.hh>
 #include <RAT/GeoCutTubeFactory.hh>
+#include <RAT/GeoTubeRoundFactory.hh>
 
 using namespace std;
 
@@ -60,6 +61,7 @@ GeoBuilder::GeoBuilder()
   new GeoTubeIntersectionFactory();
   new GeoPerfBoxFactory();
   new GeoCutTubeFactory();
+  new GeoTubeRoundFactory();
 
   // Register standard waveguides
   GlobalFactory<WaveguideFactory>::Register("cone",
