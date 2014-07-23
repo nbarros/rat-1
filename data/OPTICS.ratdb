@@ -45,10 +45,7 @@ RINDEX_value2: [1.42516d, 1.42516d, 1.37761d, 1.35942d, 1.34978d, 1.34378d, 1.33
 ABSLENGTH_option: "wavelength", //60 nm is bogus to prevent G4 from complaining when VUVs hit the water
 ABSLENGTH_value1: [60d, 200d, 800d, ],
 ABSLENGTH_value2: [10.0d3, 10.0d3, 10.0d3, ],
-RSLENGTH_option: "wavelength", //60 nm is bogus to prevent G4 from complaining when VUVs hit the water
-RSLENGTH_value1: [60d, 200d, 800d, ],
-RSLENGTH_value2: [10.0d3, 10.0d3, 10.0d3, ],
-PROPERTY_LIST: ["NEUTRON_CAPTURE_TIME", "NEUTRON_SLOW_DIFFUSION_CONST", "NEUTRON_FAST_DIFFUSION_RMS", "RINDEX", "ABSLENGTH", "RSLENGTH", ]
+PROPERTY_LIST: ["NEUTRON_CAPTURE_TIME", "NEUTRON_SLOW_DIFFUSION_CONST", "NEUTRON_FAST_DIFFUSION_RMS", "RINDEX", "ABSLENGTH", ]
 }
 
 

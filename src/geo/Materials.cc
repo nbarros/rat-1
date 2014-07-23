@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <functional>
 #include <numeric>
+#include <G4Element.hh>
 #include <G4OpticalSurface.hh>
 #include <G4SurfaceProperty.hh>
 #include <G4NistManager.hh>
@@ -121,7 +122,7 @@ void Materials::LoadOpticalSurfaces() {
   }
 }
 
-// ----------------------------------------------------------------
+
 void Materials::ConstructMaterials() {
   // = Elements =====================
 
@@ -257,7 +258,7 @@ void Materials::ConstructMaterials() {
 
 
 bool Materials::BuildMaterial(string namedb, DBLinkPtr table) {
-  G4MaterialPropertiesTable* MPT = NULL;
+  G4MaterialPropertiesTable* mpt = NULL;
 
   double densitydb;
   int nelementsdb;
@@ -329,9 +330,9 @@ bool Materials::BuildMaterial(string namedb, DBLinkPtr table) {
   }
 
   if (formula != "BAD") {
-    MPT = new G4MaterialPropertiesTable();
-    MPT->AddConstProperty("MOL", mol/g);
-    tempptr->SetMaterialPropertiesTable(MPT);
+    mpt = new G4MaterialPropertiesTable();
+    mpt->AddConstProperty("MOL", mol/g);
+    tempptr->SetMaterialPropertiesTable(mpt);
   }
 
   if (nelementsdb > 0) {
@@ -466,6 +467,7 @@ Materials::BuildMaterialPropertiesTable(G4Material* material, DBLinkPtr table) {
   }
 
   std::string name = std::string(material->GetName());
+
   // Determine which fields to load
   vector<std::string> props;
   try {
@@ -527,12 +529,12 @@ void Materials::LoadOptics() {
     
     G4Material* material = G4Material::GetMaterial(name);
     if (material == NULL) {
-      G4cout << "While loading optics in Materials, "
+      G4cout << "Materials: While loading optics, "
              << "there was a bad material name: " << name << G4endl;
       continue;
     }
 
-    // Build MPT if necessary
+    // Build MPT
     BuildMaterialPropertiesTable(material, iv->second);
   }
 
@@ -576,119 +578,110 @@ void Materials::LoadOptics() {
 
     G4Material* material = G4Material::GetMaterial(name);
     Log::Assert(material, "Materials: Unable to locate primary material");
+
     G4MaterialPropertiesTable* mpt = material->GetMaterialPropertiesTable();
+    Log::Assert(mpt, "Materials: Unable to locate material property table");
+
+    const std::map<G4String,
+                   G4MaterialPropertyVector*>* mpm = mpt->GetPropertiesMap();
 
     // Loop over components, adding their properties to the current material's
     // properties table. They are numbered by their index so that we can
-    // e.g. absorb on X and reemit with the right spectrum, except for
-    // scattering, which is combined into a single scattering length
+    // e.g. absorb on X and reemit with the right spectrum
+    G4double* attenuation_coeff_x = NULL;
+    G4double* attenuation_coeff_y = NULL;
+    G4int n_entries = 0;
+
     mpt->AddConstProperty("NCOMPONENTS", components.size());
     for (size_t i=0; i<components.size(); i++) {
       std::string compname = components[i];
       double fraction = fractions[i];
       std::stringstream ss;
-      ss << "FRACTION" << i + 1;
+      ss << "FRACTION" << i;
       mpt->AddConstProperty(ss.str().c_str(), fraction);
 
-      G4cout << " - Component " << i << ": " << compname
+      G4cout << " - " << name << "[" << i << "]: " << compname
              << " (" << 100.0 * fraction << "%)" << G4endl;
 
       G4Material* component = G4Material::GetMaterial(compname);
-      Log::Assert(material, "Materials: Unable to locate component material");
-      const std::map<G4String,
-                     G4MaterialPropertyVector*>* mpm = mpt->GetPropertiesMap();
-      const std::map<G4String,
-                     G4double>* mpmc = mpt->GetPropertiesCMap();
+      Log::Assert(component, "Materials: Unable to locate component material");
 
       G4MaterialPropertiesTable* cpt = component->GetMaterialPropertiesTable();
-
-      // Copy component vector properties to material
-      G4double* absorption_coeff_x = NULL;
-      G4double* absorption_coeff_y = NULL;
-      G4double* rayleigh_coeff_x = NULL;
-      G4double* rayleigh_coeff_y = NULL;
+      Log::Assert(cpt, "Materials: Unable to locate component property table");
 
       const std::map<G4String,
                      G4MaterialPropertyVector*>* cpm = cpt->GetPropertiesMap();
-      std::map<G4String,
-               G4MaterialPropertyVector*>::const_iterator it;
+
+      // Copy over relevant property vectors, and meanwhile calculate the
+      // total attentuation length
+      std::map<G4String, G4MaterialPropertyVector*>::const_iterator it;
+
       for (it=cpm->begin(); it!=cpm->end(); it++) {
         std::string name = it->first;
-        if (name.find("REEMITWAVEFORM") != std::string::npos    ||
-            name.find("SCINTILLATION_WLS") != std::string::npos ||
-            name.find("ABSLENGTH") != std::string::npos) {
-          Log::Assert(mpm->find(name) == mpm->end(),
-                      "Materials: Composite material cannot contain the same properties as components");
-          G4cout << compname << " has " << name << "!" << G4endl;
-          std::stringstream ss;
-          ss << name << i + 1;
-          mpt->AddProperty(ss.str().c_str(), it->second);
+        if (name.find("OPSCATFRAC")      != std::string::npos ||
+            name.find("ABSLENGTH")       != std::string::npos ||
+            name.find("SCINTILLATION")   != std::string::npos ||
+            name.find("SCINTWAVEFORM")   != std::string::npos ||
+            name.find("SCINTMOD")        != std::string::npos ||
+            name.find("REEMISSION")      != std::string::npos ||
+            name.find("REEMISSION_PROB") != std::string::npos ||
+            name.find("REEMITWAVEFORM")  != std::string::npos) {
 
-          // Also compute total absorption length
+          Log::Assert(mpm->find(name) == mpm->end(),
+                      dformat("Materials: Dulicate property %s", name.c_str()));
+
           if (name.find("ABSLENGTH") != std::string::npos) {
-            if (!absorption_coeff_x) {
-              G4MaterialPropertyVector* tempv = it->second;
-              size_t entries = tempv->GetVectorLength();
-              absorption_coeff_x = new G4double[entries];
-              absorption_coeff_y = new G4double[entries];
-              for (size_t ientry=0; ientry<entries; ientry++) {
-                absorption_coeff_x[ientry] = tempv->Energy(ientry);
-                absorption_coeff_y[ientry] = fraction / tempv->Value(ientry);
+            G4MaterialPropertyVector* attVector = it->second;
+
+            attVector->ScaleVector(1.0, 1.0 / fraction);
+
+            if (!attenuation_coeff_x) {
+              n_entries = attVector->GetVectorLength();
+              attenuation_coeff_x = new G4double[n_entries];
+              attenuation_coeff_y = new G4double[n_entries];
+              for (G4int ientry=0; ientry<n_entries; ientry++) {
+                G4double energy = attVector->Energy(ientry);
+                attenuation_coeff_x[ientry] = energy;
+                attenuation_coeff_y[ientry] = 1.0 / attVector->Value(energy);
+              }
+            }
+            else {
+              for (G4int ientry=0; ientry<n_entries; ientry++) {
+                G4double ahere = attVector->Value(attenuation_coeff_x[ientry]);
+                attenuation_coeff_y[ientry] += 1.0 / ahere;
               }
             }
           }
 
-          size_t entries = it->second->GetVectorLength();
-          for (size_t ientry=0; ientry<entries; ientry++) {
-            G4double ahere = it->second->Value(absorption_coeff_x[ientry]);
-            absorption_coeff_y[ientry] += fraction / ahere;
-          }
-        }
-
-        // The scattering lengths are combined
-        else if (name.find("RSLENGTH") != std::string::npos) {
-          Log::Assert(mpm->find(name) == mpm->end(),
-                      "Materials: Composite material cannot contain the same properties as components");
-          if (!rayleigh_coeff_x) {
-            G4MaterialPropertyVector* tempv = it->second;
-            G4int entries = tempv->GetVectorLength();
-            rayleigh_coeff_x = new G4double[entries];
-            rayleigh_coeff_y = new G4double[entries];
-            for (G4int ientry=0; ientry<entries; ientry++) {
-              rayleigh_coeff_x[ientry] = tempv->Energy(ientry);
-              rayleigh_coeff_y[ientry] = fraction / tempv->Value(ientry);
-            }
-          }
-
-          size_t entries = it->second->GetVectorLength();
-          for (size_t ientry=0; ientry<entries; ientry++) {
-            G4double ahere = it->second->Value(rayleigh_coeff_x[ientry]);
-            rayleigh_coeff_y[ientry] += fraction / ahere;
-          }
-        }
-      }
-
-      // Copy component constant properties to material
-      const std::map<G4String,
-                     G4double>* cpmc = cpt->GetPropertiesCMap();
-      std::map<G4String,
-               G4double>::const_iterator itc;
-      for (itc=cpmc->begin(); itc!=cpmc->end(); itc++) {
-        std::string name = itc->first;
-        if (name.find("REEMISSION_PROB") != std::string::npos) {
-          Log::Assert(mpmc->find(name) == mpmc->end(),
-                      "Materials: Composite material cannot contain the same properties as components");
-          G4cout << compname << " has " << name << G4endl;
           std::stringstream ss;
-          ss << name << i + 1;
-          mpt->AddConstProperty(ss.str().c_str(), itc->second);
+          ss << name;
+
+          // We'll only add one primary scintillator
+          if (name.find("SCINTILLATION") == std::string::npos &&
+              name.find("SCINTWAVEFORM") == std::string::npos &&
+              name.find("SCINTMOD")      == std::string::npos) {
+            ss << i;
+          }
+
+          mpt->AddProperty(ss.str().c_str(), it->second);
         }
       }
     }
 
+    // Build total attenuation length from components if needed
+    G4MaterialPropertyVector* pv_abs = NULL;
+    if (n_entries > 0) {
+      pv_abs = new G4MaterialPropertyVector();
+      for (G4int ientry=0; ientry<n_entries; ientry++) {
+        pv_abs->InsertValues(attenuation_coeff_x[ientry],
+                             1.0 / attenuation_coeff_y[ientry]);
+      }
+    }
+
+    mpt->AddProperty("ABSLENGTH", pv_abs);
+
+    // FIXME debugging output
     G4cout << "----" << G4endl;
-    const std::map<G4String,
-                   G4MaterialPropertyVector*>* mpm = mpt->GetPropertiesMap();
     std::map<G4String,
              G4MaterialPropertyVector*>::const_iterator it;
     for (it=mpm->begin(); it!=mpm->end(); it++) {

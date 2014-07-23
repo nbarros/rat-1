@@ -18,6 +18,7 @@ public:
     numReemitPhoton = 0;
     extTriggerType = 0;
     extTriggerTime = 0.0;
+    opticsComponentIndex = 0;
   };
 
   virtual ~EventInfo() { delete fCalib; }
@@ -59,6 +60,16 @@ public:
   /** Map of photon track ID to original parent ID and creation step */
   std::map<int, std::vector<int> > PhotonIDParentStep;
   
+  /**
+   * ID of the optical component a photon is 'attenuated' by.
+   *
+   * This is used to pass information between GLG4OpAttenuation (which
+   * absorbs opticalphotons) to GLG4Scint (which reemits them) so that we
+   * can use the correct reemission spectrum/timing for the component
+   * that did the absorbing.
+   */
+  int opticsComponentIndex;
+
 protected:
   DS::Calib* fCalib;
 };

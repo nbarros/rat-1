@@ -14,10 +14,11 @@ Table of Contents:
    random
    data_structure
    database
+   component_optics
    generators
    geometry
    processes
-   pmts
+   pmt
    producers
    processors
    user_processors
