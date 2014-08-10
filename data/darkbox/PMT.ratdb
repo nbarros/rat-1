@@ -1,0 +1,21 @@
+
+{
+name: "PMT",
+index: "r580",
+valid_begin: [0,0],
+valid_end: [0,0],
+
+dynode_material: "stainless_steel",
+glass_material: "glass",
+pmt_vacuum_material: "pmt_vacuum", // dilute air
+photocathode_surface: "photocathode_R580", 
+mirror_surface: "mirror",
+dynode_surface: "stainless_steel",
+
+dynode_radius: 34.0, // wild guess in mm
+dynode_top:   -20.625, // wild guess in mm
+wall_thickness: 3.0, // wild guess in mm
+z_edge:   [ 0.0d,  		-109.00d], 
+rho_edge: [ 19.00d ,	19.0d],   
+z_origin: [ -1000000.00d,  0.00d], 
+}
