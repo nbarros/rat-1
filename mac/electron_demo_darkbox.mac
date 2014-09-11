@@ -1,0 +1,27 @@
+/glg4debug/glg4param omit_muon_processes  1.0
+/glg4debug/glg4param omit_hadronic_processes  1.0
+
+# This sets rat to load all the RATDB files in <ROTROOT>/data/darkbox
+/rat/db/set DETECTOR experiment "darkbox"
+# This sets the primary geometry file
+/rat/db/set DETECTOR geo_file "darkbox/darkbox.geo"
+
+/run/initialize
+
+# BEGIN EVENT LOOP
+/rat/proc simpledaq
+/rat/proc count
+/rat/procset update 10
+/rat/proc fitcentroid
+
+/rat/proclast outroot
+/rat/procset file "darkbox_90Sr.root"
+#END EVENT LOOP
+
+#/tracking/storeTrajectory 1
+
+/generator/add decaychain 90Sr:fill:poisson
+/generator/pos/set 0 0 0
+
+/run/beamOn 100000
+
