@@ -22,7 +22,7 @@ size: [50.0, 50.0, 50.0],
 position: [0.0, 0.0, 0.0],
 material: "acrylic_uvt_good",
 color: [0.4, 0.4, 0.6, 0.10],
-invisible:1
+invisible:0
 }
 
 {
@@ -36,7 +36,7 @@ size: [45.0, 45.0, 45.0],
 position: [0.0, 0.0, 0.0],
 material: "mystery_scintillator",
 color: [0.0, 1.0, 1.0,0.5],
-//color: [0.4, 0.4, 0.6, 0.05],
+invisible:0
 }
 
 { 
@@ -51,8 +51,5 @@ pmt_detector_type: "idpmt",
 sensitive_detector: "/mydet/pmt/inner", 
 pos_table: "PMTINFO",
 orientation: "manual",
-//orientation: "point",
-//orient_point: [0.0, 0.0, 0.0], 
-invisible:1
+invisible:0
 } 
-
