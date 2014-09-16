@@ -1,0 +1,23 @@
+# Use the GEANT4 raytracer to generate a JPEG image of the detector
+
+/glg4debug/glg4param omit_muon_processes  1.0
+/glg4debug/glg4param omit_hadronic_processes  1.0
+
+/rat/db/set DETECTOR experiment "darkbox"
+/rat/db/set DETECTOR geo_file "darkbox/darkbox.geo"
+
+
+/run/initialize
+
+/vis/open RayTracer
+/vis/rayTracer/lightDirection 1 1 1
+/vis/rayTracer/column 800
+/vis/rayTracer/row 1000
+# This is degrees per 100 pixels
+/vis/rayTracer/span 1 deg
+/vis/rayTracer/target 0 0 0 mm
+/vis/rayTracer/eyePosition 6000.0 -4000.0 3000.0 mm
+
+/vis/rayTracer/headAngle 283 deg
+/vis/rayTracer/trace raytrace.jpg
+
