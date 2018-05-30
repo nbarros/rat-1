@@ -9,7 +9,6 @@
 #include <iostream>
 #include <cstring>
 #include <cmath>
-#include <stdio.h>
 #include <algorithm>
 #include <complex>
 #include <sstream>
@@ -39,6 +38,7 @@
 // Replaced the existing using namespace std by explicit using statements to reduce the risk of variable shadowing
 using std::ostringstream;
 using std::max;
+using std::abs;
 
 using CLHEP::s;
 using CLHEP::ns;

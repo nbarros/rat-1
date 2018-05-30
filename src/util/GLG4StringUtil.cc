@@ -1,8 +1,8 @@
 #include "GLG4StringUtil.hh"
-#include <stdio.h>
-#include <limits.h>
-#include <float.h>
-#include <ctype.h>
+#include <cstdio>
+#include <climits>
+#include <cfloat>
+#include <cctype>
 
 /*------------------------------------------------------------------------------
 
@@ -11,6 +11,8 @@
   License:   BSD License
 
   ------------------------------------------------------------------------------*/
+
+using std::abs;
 
 // Turn off debug asserts
 #define DEBUG_ASSERT(test)

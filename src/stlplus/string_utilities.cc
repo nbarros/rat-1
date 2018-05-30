@@ -12,6 +12,9 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+// NFB : Ignore -Wabsolute-value on this file
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wabsolute-value"
 ////////////////////////////////////////////////////////////////////////////////
 // character mappings
 // Note: this has been copied and modified for the inf class - so any changes here must be made there too
@@ -1474,3 +1477,4 @@ std::string display_time(unsigned seconds)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//#pragma GCC diagnostic pop

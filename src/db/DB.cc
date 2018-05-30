@@ -23,6 +23,8 @@ const int maxServerBytes = 200000000; // 200 MB
 DB::DB() : server(""), run(1)
 {
   // Nothing to do
+  // use it without change it so that -Werror does not complain and fails the build
+  (void)maxServerBytes;
 }
 
 DB::~DB()
